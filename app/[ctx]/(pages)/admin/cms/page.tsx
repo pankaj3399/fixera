@@ -27,6 +27,7 @@ import {
 } from "@/lib/cms";
 import { cn } from "@/lib/utils";
 import { cmsTranslationRole } from "@/lib/cmsTranslationState";
+import AutoTranslateOverview from "@/components/cms/AutoTranslateOverview";
 import {
   AlertCircle,
   CheckCircle2,
@@ -275,6 +276,9 @@ export default function CmsAdminListPage() {
             </div>
           </div>
         </div>
+
+        {/* Site-wide auto-translation status */}
+        <AutoTranslateOverview canRun={user?.adminRole === "super" || user?.adminRole == null} />
 
         {/* Reserved policy slots */}
         <div className="mt-6 rounded-2xl border border-pink-200 bg-white/70 p-5 shadow-sm">

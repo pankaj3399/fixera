@@ -4,9 +4,10 @@ import { messageFromApiBody } from '@/lib/apiErrors';
 import { buildDisputeOverview } from '@/lib/admin/disputeFilters';
 import {
   BookingDisputeCards,
+  DisputeCounterSummary,
   type DisputeAnalytics,
+  EscalationCounts,
   REFUND_QUEUE_HREF,
-  SeparateQueueCounts,
   WARRANTY_QUEUE_HREF,
 } from '@/components/admin/disputes/DisputeOverviewSummary';
 
@@ -25,7 +26,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Skeleton } from "@/components/ui/skeleton"
-import { AlertTriangle, CheckCircle, Loader2, MessageSquare, Paperclip, RefreshCw, Scale, Shield, Upload, XCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle, Loader2, MessageSquare, Paperclip, RefreshCw, Scale, Search, Shield, Upload, XCircle } from "lucide-react"
 import { toast } from "sonner"
 import DashboardBaselineIndicator from "@/components/admin/DashboardBaselineIndicator"
 import {
@@ -130,8 +131,10 @@ interface DisputeBooking {
   claimNumber?: string
 }
 
+const DISPUTE_SEARCH_DEBOUNCE_MS = 350
+
 const SEPARATE_QUEUE_LABEL: Record<'warranty' | 'refund', string> = {
-  warranty: 'Warranty claim',
+  warranty: 'Escalated warranty claim',
   refund: 'Escalated refund request',
 }
 
@@ -212,13 +215,19 @@ export default function AdminDisputesPage() {
   const [baselineInfo, setBaselineInfo] = useState<DashboardBaselineInfo | null>(null)
 
   const [disputes, setDisputes] = useState<DisputeBooking[]>([])
-  // Separate warranty/refund queue preview (backend sends it on page 1 only).
+  // Escalated warranty claims and refund requests (backend sends them on page 1 only).
   const [externalRows, setExternalRows] = useState<DisputeBooking[]>([])
   const [totalBookingDisputes, setTotalBookingDisputes] = useState(0)
   const [analytics, setAnalytics] = useState<DisputeAnalytics | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  // Set when the latest list request failed; the rows of an earlier query are cleared then.
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<DisputeFilter>('all')
   const [page, setPage] = useState(1)
+  // Server-side search (booking number, customer/professional, dispute text).
+  // The typed value is sent after a short pause and restarts on page 1.
+  const [searchInput, setSearchInput] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
   // Switching the history mode starts this queue again on page 1.
   const [pagedHistoryMode, setPagedHistoryMode] = useState(showAll)
   if (pagedHistoryMode !== showAll) {
@@ -295,35 +304,52 @@ export default function AdminDisputesPage() {
     }
   }, [user, loading, router])
 
+  useEffect(() => {
+    const next = searchInput.trim()
+    if (next === searchQuery) return
+    const timeout = setTimeout(() => {
+      setSearchQuery(next)
+      setPage(1)
+    }, DISPUTE_SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timeout)
+  }, [searchInput, searchQuery])
+
   const fetchDisputes = useCallback(async () => {
     const requestId = ++disputesRequestRef.current
     setIsLoading(true)
     try {
       const params = new URLSearchParams({ page: page.toString(), limit: '20' })
       if (statusFilter !== 'all') params.set('status', statusFilter)
+      if (searchQuery) params.set('search', searchQuery)
 
       const history = historyQuery(showAll)
       const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/disputes?${params}${history ? `&${history}` : ''}`)
       const json = await res.json()
       if (requestId !== disputesRequestRef.current) return
-      if (json.success) {
-        setBaselineInfo(parseDashboardBaselineInfo(json.data?.baseline))
-        const paginated = Array.isArray(json.data?.disputes) ? json.data.disputes : []
-        const external = Array.isArray(json.data?.externalDisputes) ? json.data.externalDisputes : []
-        // Booking disputes and the separate warranty/refund queues are kept
-        // apart so the list, its count and pagination match the cards.
-        setDisputes(paginated)
-        setExternalRows(external)
-        setTotalBookingDisputes(Number(json.data?.pagination?.total) || 0)
-        setTotalPages(Number(json.data?.pagination?.pages) || 1)
-      }
+      if (!res.ok || !json?.success) throw new Error(json?.msg || json?.message || 'Failed to load disputes')
+      setLoadError(null)
+      setBaselineInfo(parseDashboardBaselineInfo(json.data?.baseline))
+      const paginated = Array.isArray(json.data?.disputes) ? json.data.disputes : []
+      const external = Array.isArray(json.data?.externalDisputes) ? json.data.externalDisputes : []
+      // Booking disputes and the escalated warranty/refund rows are kept
+      // apart so the list, its count and pagination match the cards.
+      setDisputes(paginated)
+      setExternalRows(external)
+      setTotalBookingDisputes(Number(json.data?.pagination?.total) || 0)
+      setTotalPages(Number(json.data?.pagination?.pages) || 1)
     } catch {
       if (requestId !== disputesRequestRef.current) return
+      // Never show another query's rows under the current search/filter.
+      setDisputes([])
+      setExternalRows([])
+      setTotalBookingDisputes(0)
+      setTotalPages(1)
+      setLoadError(searchQuery ? `Couldn't load disputes matching "${searchQuery}".` : "Couldn't load disputes.")
       toast.error('Failed to load disputes')
     } finally {
       if (requestId === disputesRequestRef.current) setIsLoading(false)
     }
-  }, [page, statusFilter, showAll])
+  }, [page, statusFilter, searchQuery, showAll])
 
   const fetchAnalytics = useCallback(async () => {
     const requestId = ++analyticsRequestRef.current
@@ -816,7 +842,7 @@ export default function AdminDisputesPage() {
               <Scale className="h-6 w-6" />
               Dispute Management
             </h1>
-            <p className="text-sm text-gray-500 mt-1">Review and resolve booking disputes</p>
+            <p className="text-sm text-gray-500 mt-1">Review and resolve booking disputes, escalated refund requests and escalated warranty claims</p>
           </div>
           <Button variant="outline" size="sm" onClick={() => { fetchDisputes(); fetchAnalytics() }}>
             <RefreshCw className="h-4 w-4 mr-2" />
@@ -826,10 +852,25 @@ export default function AdminDisputesPage() {
 
         <DashboardBaselineIndicator baseline={baselineInfo} toggleHref={baselineToggleHref} />
 
+        {analytics?.counter && <DisputeCounterSummary counter={analytics.counter} />}
+
         {analytics && <BookingDisputeCards analytics={analytics} />}
 
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-2">
+            <div className="relative w-full sm:w-72">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+              <Input
+                type="search"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="Search booking, customer, professional, reason"
+                aria-label="Search disputes"
+                maxLength={100}
+                className="pl-8"
+                data-testid="dispute-search"
+              />
+            </div>
             <Select value={statusFilter} onValueChange={(value: DisputeFilter) => { setStatusFilter(value); setPage(1) }}>
               <SelectTrigger className="w-40">
                 <SelectValue />
@@ -841,7 +882,7 @@ export default function AdminDisputesPage() {
               </SelectContent>
             </Select>
           </div>
-          {!isLoading && (
+          {!isLoading && !loadError && (
             <p className="text-sm text-gray-500">
               Showing {visibleDisputes.length} of {totalBookingDisputes} booking {totalBookingDisputes === 1 ? 'dispute' : 'disputes'}
             </p>
@@ -852,11 +893,20 @@ export default function AdminDisputesPage() {
           <div className="space-y-3">
             {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 w-full rounded-lg" />)}
           </div>
+        ) : loadError ? (
+          <Card data-testid="disputes-load-error">
+            <CardContent className="py-12 text-center">
+              <p className="text-red-600 mb-3">{loadError}</p>
+              <Button variant="outline" size="sm" onClick={() => { void fetchDisputes() }}>Retry</Button>
+            </CardContent>
+          </Card>
         ) : visibleDisputes.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <Shield className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-              <p className="text-gray-500">No booking disputes found</p>
+              <p className="text-gray-500">
+                {searchQuery ? `No booking disputes match "${searchQuery}"` : 'No booking disputes found'}
+              </p>
             </CardContent>
           </Card>
         ) : (
@@ -874,20 +924,24 @@ export default function AdminDisputesPage() {
         )}
 
         {overview.showSeparateQueues && (
-          <section className="space-y-3" data-testid="separate-queues" aria-labelledby="separate-queues-heading">
+          <section className="space-y-3" data-testid="escalations" aria-labelledby="escalations-heading">
             <div>
-              <h2 id="separate-queues-heading" className="text-lg font-semibold text-gray-900">
-                Warranty claims and escalated refund requests
+              <h2 id="escalations-heading" className="text-lg font-semibold text-gray-900">
+                Escalated refund requests and warranty claims
               </h2>
               <p className="text-sm text-gray-500">
-                Separate queues. These are not booking disputes and are not included in the booking-dispute counts above.
+                These escalations are handled in dispute management and count toward the Dispute Management counter. They are not booking disputes, so the booking-dispute cards above do not include them.
               </p>
             </div>
-            {analytics?.separateQueues && <SeparateQueueCounts queues={analytics.separateQueues} />}
-            {isLoading ? null : overview.separatePreviewOnPageOne ? (
-              <p className="text-xs text-gray-500">Previews of these queues are listed on page 1.</p>
+            {analytics?.escalations && <EscalationCounts escalations={analytics.escalations} />}
+            {isLoading || loadError ? null : overview.separatePreviewOnPageOne ? (
+              <p className="text-xs text-gray-500">Escalations are listed on page 1.</p>
             ) : visibleExternalRows.length === 0 ? (
-              <p className="text-sm text-gray-500">No active warranty claims or escalated refund requests.</p>
+              <p className="text-sm text-gray-500">
+                {searchQuery
+                  ? `No escalated warranty claims or refund requests match "${searchQuery}".`
+                  : 'No escalated warranty claims or refund requests.'}
+              </p>
             ) : (
               <div className="space-y-3">
                 {visibleExternalRows.map((d) => renderDisputeCard(d))}

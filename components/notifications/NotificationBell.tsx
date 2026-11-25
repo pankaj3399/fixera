@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { Bell, CheckCheck, Settings } from 'lucide-react';
 import {
   DropdownMenu,
@@ -28,6 +28,19 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ className = '' }) =
   const { intl } = useFormatLocale();
   const router = useRouter();
   const { items, unreadCount, loading, markRead, markAllRead, refresh } = useNotificationInbox();
+  // Notification copy is translated by the API for the request language:
+  // reload it when the visitor switches language instead of waiting for the poll.
+  const locale = useLocale();
+  const loadedLocale = React.useRef(locale);
+  React.useEffect(() => {
+    if (loadedLocale.current === locale) return;
+    // After this commit's effects, so <html lang> (sent as Accept-Language) is already updated.
+    const timer = window.setTimeout(() => {
+      loadedLocale.current = locale;
+      void refresh();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [locale, refresh]);
 
   const relativeTime = (iso: string): string => {
     const then = new Date(iso).getTime();

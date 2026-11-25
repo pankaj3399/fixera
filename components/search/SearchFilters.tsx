@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { useContentText } from '@/components/i18n/ContentTranslationsProvider';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -145,6 +146,8 @@ const SearchFilters = ({
   onLocationCoordinatesChange,
 }: SearchFiltersProps) => {
   const t = useTranslations('search');
+  // Facet values are stored text; only their labels are translated.
+  const ct = useContentText();
   const { categoryName, serviceName } = useCatalogNames();
   const { currency, currencyReady, rates } = useCurrency();
   const { levelColor } = useTierColors();
@@ -617,7 +620,7 @@ const SearchFilters = ({
                     htmlFor={`area-${value}`}
                     className="text-sm font-normal text-gray-700 cursor-pointer"
                   >
-                    {renderOptionContent(value, count)}
+                    {renderOptionContent(ct(value), count)}
                   </Label>
                 </div>
               ))}
@@ -695,7 +698,7 @@ const SearchFilters = ({
                     className="text-sm font-normal text-gray-700 cursor-pointer w-full"
                   >
                     <span className="flex w-full items-center justify-between">
-                      <Badge className="font-medium bg-blue-600 hover:bg-blue-700 text-white border-transparent">{value}</Badge>
+                      <Badge className="font-medium bg-blue-600 hover:bg-blue-700 text-white border-transparent">{ct(value)}</Badge>
                       {typeof count === 'number' && (
                         <span className="text-xs text-gray-500 ml-2">{count}</span>
                       )}
@@ -734,7 +737,7 @@ const SearchFilters = ({
                     htmlFor={`includedItem-${value}`}
                     className="text-sm font-normal text-gray-700 cursor-pointer"
                   >
-                    {renderOptionContent(value, count)}
+                    {renderOptionContent(ct(value), count)}
                   </Label>
                 </div>
               ))}

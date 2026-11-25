@@ -34,8 +34,10 @@ const RESET_AT = '2026-11-01T10:00:00.000Z'
 const snapshot = {
   dashboards: [
     { key: 'disputes', resetAt: RESET_AT, resetBy: { id: 'u1', name: 'Sara Super' }, note: 'clear tests', canUndo: true },
-    { key: 'warrantyClaims', resetAt: null, resetBy: null, note: '', canUndo: false },
     { key: 'cancellations', resetAt: null, resetBy: null, note: '', canUndo: false },
+    { key: 'supportTickets', resetAt: null, resetBy: null, note: '', canUndo: false },
+    { key: 'chatReports', resetAt: null, resetBy: null, note: '', canUndo: false },
+    { key: 'reviewModeration', resetAt: null, resetBy: null, note: '', canUndo: false },
     { key: 'bookingKpis', resetAt: null, resetBy: null, note: '', canUndo: false },
   ],
   history: [
@@ -102,8 +104,9 @@ test('formatBaselineDate formats valid dates and returns empty text otherwise', 
 })
 
 test('snapshot parsing keeps known dashboards and rejects malformed bodies', () => {
-  const parsed = helpers.parseDashboardBaselineSnapshot({ success: true, data: { ...snapshot, dashboards: [...snapshot.dashboards, { key: 'kpi' }] } })
-  assert.equal(parsed.dashboards.length, 4)
+  const parsed = helpers.parseDashboardBaselineSnapshot({ success: true, data: { ...snapshot, dashboards: [...snapshot.dashboards, { key: 'kpi' }, { key: 'warrantyClaims' }] } })
+  assert.equal(parsed.dashboards.length, 6)
+  assert.equal(parsed.dashboards.some((d) => d.key === 'warrantyClaims'), false, 'warranty claims are no longer resettable')
   assert.deepEqual(parsed.dashboards[0].resetBy, { id: 'u1', name: 'Sara Super' })
   assert.equal(parsed.history[0].action, 'reset')
   assert.equal(helpers.parseDashboardBaselineSnapshot(null), null)
@@ -124,7 +127,8 @@ test('request paths target one dashboard, all dashboards, or undo', () => {
   assert.equal(helpers.resetRequestPath('disputes'), '/api/admin/platform-settings/dashboard-baselines/disputes/reset')
   assert.equal(helpers.resetRequestPath('all'), '/api/admin/platform-settings/dashboard-baselines/reset-all')
   assert.equal(helpers.undoRequestPath('bookingKpis'), '/api/admin/platform-settings/dashboard-baselines/bookingKpis/undo')
-  assert.deepEqual(helpers.keysForReset('all'), ['disputes', 'warrantyClaims', 'cancellations', 'bookingKpis'])
+  assert.deepEqual(helpers.keysForReset('all'), ['disputes', 'cancellations', 'supportTickets', 'chatReports', 'reviewModeration', 'bookingKpis'])
+  assert.equal(helpers.isDashboardBaselineKey('warrantyClaims'), false)
   assert.deepEqual(helpers.keysForReset('cancellations'), ['cancellations'])
 })
 
@@ -137,18 +141,33 @@ test('super admin sees the reset list, baselines, who set them, reset buttons an
   const html = renderView()
   const plain = text(html)
   assert.match(plain, /Reset dashboards/)
-  assert.match(plain, /Booking disputes/)
-  assert.match(plain, /Warranty claims/)
-  assert.match(plain, /Cancellations and refunds/)
-  assert.match(plain, /Booking KPIs/)
+  assert.match(plain, /After a reset the counter shows 0/)
+  for (const label of ['Dispute management', 'Cancellation requests', 'Support tickets', 'Reported chats', 'Review moderation', 'Booking KPIs']) {
+    assert.match(plain, new RegExp(label))
+  }
+  assert.match(plain, /escalated refund requests and escalated warranty claims/)
+  assert.doesNotMatch(plain, /Warranty claims/, 'warranty claims have no reset row of their own')
   assert.match(plain, /Reset all/)
   assert.match(plain, /Counting since .*2026.* · set by Sara Super/)
-  assert.match(plain, /Not reset yet\. Counting all history\./)
-  assert.equal((html.match(/data-dashboard=/g) || []).length, 4)
+  assert.match(plain, /Never reset\. The counter includes all open work\./)
+  assert.equal((html.match(/data-dashboard=/g) || []).length, 6)
   // Undo is offered only where the latest event is a reset.
   assert.equal((plain.match(/Undo last reset/g) || []).length, 1)
   assert.match(plain, /Reset history/)
   assert.match(plain, /Reset · .*2026.* · Sara Super — clear tests/)
+})
+
+test('a retired warranty-claims reset stays readable in the history', () => {
+  const parsed = helpers.parseDashboardBaselineSnapshot({
+    success: true,
+    data: {
+      ...snapshot,
+      history: [{ dashboardKey: 'warrantyClaims', action: 'reset', resetAt: RESET_AT, previousResetAt: null, actorName: 'Sara Super', note: '', batchId: null, createdAt: RESET_AT }],
+    },
+  })
+  assert.equal(parsed.history[0].dashboardKey, 'warrantyClaims')
+  const plain = text(renderView({ snapshot: parsed }))
+  assert.match(plain, /Warranty claims \(no longer reset here\) ?: Reset · .*2026.* · Sara Super/)
 })
 
 test('no confirmation panel is shown until a reset is requested', () => {
@@ -160,9 +179,12 @@ test('confirming a single-dashboard reset explains that nothing is deleted', () 
   const html = renderView({ pending: { target: 'cancellations' }, note: 'draft note' })
   assert.match(html, /role="alertdialog"/)
   const plain = text(html)
-  assert.match(plain, /Reset Cancellations and refunds\?/)
-  assert.match(plain, /Nothing is deleted\./)
-  assert.match(plain, /Open and pending items are never hidden by a reset/)
+  assert.match(plain, /Reset Cancellation requests\?/)
+  // The dialog says the counter becomes 0, counts only new work, and deletes nothing.
+  assert.match(plain, /The counter goes back to 0 right away\. From then on it only counts items that arrive, or need an admin again, after this moment\./)
+  assert.match(plain, /Nothing is deleted or changed\./)
+  assert.match(plain, /Open and pending items stay in their lists/)
+  assert.match(plain, /you can undo the reset/)
   assert.match(plain, /Confirm reset/)
   assert.match(plain, /Cancel/)
   assert.match(html, /maxLength="500"/)
@@ -171,19 +193,22 @@ test('confirming a single-dashboard reset explains that nothing is deleted', () 
 
 test('confirming reset-all uses the all-dashboards title and call to action', () => {
   const plain = text(renderView({ pending: { target: 'all' } }))
-  assert.match(plain, /Reset all booking dashboards\?/)
-  assert.match(plain, /Nothing is deleted\./)
+  assert.match(plain, /Reset all dashboards\?/)
+  assert.match(plain, /The counter goes back to 0/)
+  assert.match(plain, /Nothing is deleted or changed\./)
   assert.match(plain, /Reset all dashboards/)
 })
 
 test('the reset section is localised in Dutch and French', () => {
   const nl = text(renderView({ pending: { target: 'disputes' } }, 'nl'))
   assert.match(nl, /Dashboards resetten/)
-  assert.match(nl, /Er wordt niets verwijderd\./)
+  assert.match(nl, /Er wordt niets verwijderd of gewijzigd\./)
+  assert.match(nl, /De teller gaat meteen terug naar 0/)
   assert.match(nl, /Resetten/)
   const fr = text(renderView({ pending: { target: 'disputes' } }, 'fr'))
   assert.match(fr, /Réinitialiser les tableaux de bord/)
-  assert.match(fr, /Rien n'est supprimé\./)
+  assert.match(fr, /Rien n'est supprimé ni modifié\./)
+  assert.match(fr, /Le compteur revient immédiatement à 0/)
   assert.match(fr, /Confirmer la réinitialisation/)
 })
 
@@ -220,13 +245,13 @@ test('indicator reads "Counting since <date> · Show all history" and links to t
 
 test('indicator in show-all mode says so and offers to count from the reset again', () => {
   const html = withIntl(React.createElement(DashboardBaselineIndicator, {
-    baseline: { key: 'warrantyClaims', resetAt: RESET_AT, showAll: true, applied: false },
-    toggleHref: '/admin/warranty-claims',
+    baseline: { key: 'cancellations', resetAt: RESET_AT, showAll: true, applied: false },
+    toggleHref: '/admin/cancellation-requests',
   }))
   assert.match(html, /data-state="showing-all"/)
   assert.match(text(html), /Showing all history, including records from before the reset on .*2026/)
   assert.match(text(html), /Count from reset/)
-  assert.match(html, /href="\/admin\/warranty-claims"/)
+  assert.match(html, /href="\/admin\/cancellation-requests"/)
 })
 
 test('indicator is localised', () => {
@@ -241,7 +266,6 @@ test('indicator is localised', () => {
 test('every affected admin page wires show-all into its requests and shows the indicator', () => {
   const pages = {
     'app/[ctx]/(pages)/admin/disputes/page.tsx': ['historyQuery(showAll)', '<DashboardBaselineIndicator'],
-    'app/[ctx]/(pages)/admin/warranty-claims/page.tsx': ['params.set("history", "all")', 'historyQuery(showAll)', '<DashboardBaselineIndicator'],
     'app/[ctx]/(pages)/admin/cancellation-requests/page.tsx': ["params.set('history', 'all')", '<DashboardBaselineIndicator'],
     'app/[ctx]/(pages)/admin/kpi/page.tsx': ['historyQuery(showAll)', '<DashboardBaselineIndicator'],
   }
@@ -250,6 +274,9 @@ test('every affected admin page wires show-all into its requests and shows the i
     for (const needle of needles) assert.ok(source.includes(needle), `${file} missing ${needle}`)
     assert.ok(source.includes('isShowAllHistory(searchParams)'), `${file} reads show-all from the URL`)
   }
+  // Warranty claims have no reset of their own any more: no indicator, no show-all.
+  const warranty = read('app/[ctx]/(pages)/admin/warranty-claims/page.tsx')
+  assert.doesNotMatch(warranty, /DashboardBaselineIndicator|isShowAllHistory|historyQuery|"history"/)
 })
 
 test('the KPI page applies show-all to every range request through appliedRange', () => {
@@ -269,6 +296,7 @@ const translate = (key, values = {}) => {
   const value = key.split('.').reduce((node, part) => node?.[part], messagesEn)
   return String(value ?? key).replace(/\{(\w+)\}/g, (_, name) => values[name] ?? '')
 }
+const ADMIN_NAV_BADGES_REFRESH_EVENT = 'fixtract:admin-nav-badges-refresh'
 const cardFile = new URL('../components/admin/DashboardBaselineSettingsCard.tsx', import.meta.url)
 const cardHarness = (authFetch) =>
   componentHarness(cardFile, {
@@ -276,6 +304,7 @@ const cardHarness = (authFetch) =>
     sonner: { toast: { success() {}, error() {} } },
     '@/lib/utils': { authFetch },
     '@/lib/admin/dashboardBaselines': helpers,
+    '@/hooks/useAdminNavigationBadges': { ADMIN_NAV_BADGES_REFRESH_EVENT },
   })
 const buttonLabelled = (h, label) =>
   h.findAll((node) => typeof node.props.onClick === 'function' && elementText(node).trim() === label)[0]
@@ -299,7 +328,36 @@ test('a failed baseline load offers a retry that asks the server again and then 
   requests[1].respond({ success: true, data: snapshot })
   await h.settle()
   assert.equal(view().loadFailed, false)
-  assert.equal(view().snapshot.dashboards.length, 4)
+  assert.equal(view().snapshot.dashboards.length, 6)
+})
+
+test('a confirmed reset asks the nav counters to refresh at once', async () => {
+  const requests = []
+  const authFetch = (url, init) =>
+    new Promise((resolve) => requests.push({ url: String(url), init, respond: (body) => resolve({ ok: true, json: async () => body }) }))
+  const events = []
+  const previousWindow = globalThis.window
+  globalThis.window = { dispatchEvent: (event) => events.push(event.type) }
+  try {
+    const h = cardHarness(authFetch)
+    h.render({ canManage: true })
+    await h.settle()
+    requests[0].respond({ success: true, data: snapshot })
+    await h.settle()
+    assert.deepEqual(events, [], 'loading alone does not refresh the badges')
+
+    const view = () => h.findAll((node) => typeof node.props.onConfirmReset === 'function')[0].props
+    view().onRequestReset('chatReports')
+    await h.settle()
+    view().onConfirmReset()
+    await h.settle()
+    assert.match(requests[1].url, /\/dashboard-baselines\/chatReports\/reset$/)
+    requests[1].respond({ success: true, data: snapshot })
+    await h.settle()
+    assert.deepEqual(events, [ADMIN_NAV_BADGES_REFRESH_EVENT])
+  } finally {
+    globalThis.window = previousWindow
+  }
 })
 
 test('the reset confirmation takes focus when it opens and returns it to the opener when it closes', () => {
@@ -314,6 +372,7 @@ test('the reset confirmation takes focus when it opens and returns it to the ope
       sonner: { toast: { success() {}, error() {} } },
       '@/lib/utils': { authFetch: async () => ({ ok: false, json: async () => ({}) }) },
       '@/lib/admin/dashboardBaselines': helpers,
+    '@/hooks/useAdminNavigationBadges': { ADMIN_NAV_BADGES_REFRESH_EVENT },
     })
     h.useComponent(h.exports.DashboardBaselineSettingsView)
     h.render(viewProps({ pending: { target: 'cancellations' } }))
@@ -341,6 +400,7 @@ test('the Undo button hands the resetAt on screen to the card', () => {
     sonner: { toast: { success() {}, error() {} } },
     '@/lib/utils': { authFetch: async () => ({ ok: false, json: async () => ({}) }) },
     '@/lib/admin/dashboardBaselines': helpers,
+    '@/hooks/useAdminNavigationBadges': { ADMIN_NAV_BADGES_REFRESH_EVENT },
   })
   h.useComponent(h.exports.DashboardBaselineSettingsView)
   const undone = []
@@ -371,6 +431,7 @@ test('undo sends the displayed resetAt; a BASELINE_CHANGED conflict reloads the 
     sonner: { toast: { success: (message) => toasts.push(['success', message]), error: (message) => toasts.push(['error', message]) } },
     '@/lib/utils': { authFetch },
     '@/lib/admin/dashboardBaselines': helpers,
+    '@/hooks/useAdminNavigationBadges': { ADMIN_NAV_BADGES_REFRESH_EVENT },
   })
   h.render({ canManage: true })
   await h.settle()

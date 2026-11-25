@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Check, Clock, Shield, ArrowRight, Calendar, Info, Package } from 'lucide-react'
 import { formatPriceModelLabel } from '@/lib/projectHighlights'
+import { translatedLabel } from '@/lib/contentTranslations'
+import { useContentText } from '@/components/i18n/ContentTranslationsProvider'
 import { computeCustomerPriceWithRepeatBuyerDiscount } from '@/lib/projectPricing'
 import { useCustomerPricing } from '@/hooks/useCustomerPricing'
 import { useCurrency } from '@/contexts/CurrencyContext'
@@ -79,13 +81,14 @@ export default function SubprojectComparisonTable({
 }: SubprojectComparisonTableProps) {
   const t = useTranslations('projects')
   const tWizard = useTranslations('projectWizard')
+  const ct = useContentText()
   const { formatPrice } = useCurrency()
   const { customerPrice, originalPrice, loyalty, pricingReady, loyaltyLoaded } = useCustomerPricing()
   const isPricingReady = pricingReady && loyaltyLoaded
 
   const unitSuffixLabel = (value: string) => {
     const key = UNIT_SUFFIX_KEYS[value.toLowerCase() as keyof typeof UNIT_SUFFIX_KEYS]
-    return key ? t(key) : formatPriceModelLabel(value)
+    return key ? t(key) : translatedLabel(ct, value, formatPriceModelLabel)
   }
 
   const formatAmount = (value?: number | null) =>
@@ -113,7 +116,7 @@ export default function SubprojectComparisonTable({
     if (typeof value === 'number') {
       return `${value}${suffix}`
     }
-    return String(value)
+    return ct(String(value))
   }
 
   const currentSubproject = subprojects[selectedIndex]
@@ -213,7 +216,8 @@ export default function SubprojectComparisonTable({
           : undefined;
       return { ...item, paramValue: hasValue ? formatProfessionalInputValue(match!.value, suffix ? unitSuffixLabel(suffix) : undefined) : undefined };
     });
-  }, [allIncludedItems, currentSubproject?.professionalInputs, currentSubproject?.pricing?.type, priceModel]);
+    // ct and t: the cached values are translated, so a new language or translation map must recompute them.
+  }, [allIncludedItems, currentSubproject?.professionalInputs, currentSubproject?.pricing?.type, priceModel, ct, t]);
 
   if (!subprojects || subprojects.length === 0 || !currentSubproject) {
     return null;
@@ -269,7 +273,7 @@ export default function SubprojectComparisonTable({
                     ? 'text-gray-900 border-b-2 border-gray-900'
                     : 'text-gray-500 hover:text-gray-700'
                     }`}
-                  title={subproject.name}
+                  title={ct(subproject.name)}
                 >
                   {/* The badge sits in flow above the label (labels stay bottom-aligned
                       across tabs), so it can never cover a long name on a narrow tab.
@@ -282,7 +286,7 @@ export default function SubprojectComparisonTable({
                       {t('comparison.popular')}
                     </span>
                   )}
-                  <span className="block max-w-full whitespace-normal break-words">{subproject.name}</span>
+                  <span className="block max-w-full whitespace-normal break-words">{ct(subproject.name)}</span>
                 </button>
               ))}
             </div>
@@ -292,8 +296,8 @@ export default function SubprojectComparisonTable({
           <div className="p-4 sm:p-8">
             {/* Package Header */}
             <div className="mb-6">
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">{currentSubproject.name}</h3>
-              <p className="text-gray-600 text-sm mb-6">{currentSubproject.description}</p>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">{ct(currentSubproject.name)}</h3>
+              <p className="text-gray-600 text-sm mb-6">{ct(currentSubproject.description)}</p>
 
               {/* Price Display */}
               <div className="flex items-baseline justify-between mb-6">
@@ -421,13 +425,13 @@ export default function SubprojectComparisonTable({
                         <Check className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isIncluded ? 'text-green-500' : 'text-gray-300'}`} />
                         <div>
                           <p className={`text-sm font-medium ${isIncluded ? 'text-gray-900' : 'text-gray-400'}`}>
-                            {predefinedKey ? tWizard(`step2.predefinedItems.${predefinedKey}`) : item.name}
+                            {predefinedKey ? tWizard(`step2.predefinedItems.${predefinedKey}`) : ct(item.name)}
                             {item.paramValue && (
                               <span className="font-bold"> {item.paramValue}</span>
                             )}
                           </p>
                           {item.description && (
-                            <p className={`text-xs mt-0.5 ${isIncluded ? 'text-gray-600' : 'text-gray-400'}`}>{item.description}</p>
+                            <p className={`text-xs mt-0.5 ${isIncluded ? 'text-gray-600' : 'text-gray-400'}`}>{ct(item.description)}</p>
                           )}
                         </div>
                       </div>
@@ -455,7 +459,7 @@ export default function SubprojectComparisonTable({
                   {currentSubproject.materials.map((mat, matIdx) => (
                     <div key={matIdx} className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-2.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-900">{mat.name}</span>
+                        <span className="text-sm font-medium text-gray-900">{ct(mat.name)}</span>
                         {mat.description && (
                           <span className="relative group">
                             <button type="button" aria-describedby={`mat-tooltip-${matIdx}`} className="inline-flex focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-400 rounded">
@@ -463,14 +467,14 @@ export default function SubprojectComparisonTable({
                               <span className="sr-only">{t('comparison.materialInfo')}</span>
                             </button>
                             <span id={`mat-tooltip-${matIdx}`} role="tooltip" className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block group-focus-within:block w-48 px-3 py-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg z-10">
-                              {mat.description}
+                              {ct(mat.description)}
                             </span>
                           </span>
                         )}
                       </div>
                       {(mat.quantity || mat.unit) && (
                         <span className="text-sm font-semibold text-gray-900">
-                          {[mat.quantity, mat.unit].filter(Boolean).join(' ')}
+                          {[mat.quantity, ct(mat.unit)].filter(Boolean).join(' ')}
                         </span>
                       )}
                     </div>

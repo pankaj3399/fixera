@@ -8,6 +8,7 @@ process.env.NEXT_PUBLIC_BACKEND_URL = 'https://api.example.test'
 
 const file = new URL('../app/[ctx]/(pages)/projects/[id]/ProjectDetailView.tsx', import.meta.url)
 const originalFetch = globalThis.fetch
+const contentTranslations = await import('../lib/contentTranslations.ts')
 const t = (key) => key
 const toasts = []
 const errorText = (_body, fallback) => fallback
@@ -58,6 +59,8 @@ function view(respond) {
     '@/components/project/ProjectBookingForm': { __esModule: true, default: () => null },
     '@/components/project/SubprojectComparisonTable': { __esModule: true, default: () => null },
     '@/components/favorites/FavoriteButton': { __esModule: true, default: () => null },
+    '@/lib/contentTranslations': contentTranslations,
+    '@/components/i18n/ContentTranslationsProvider': { ContentTranslationsProvider: ({ children }) => children },
     '@/lib/projectHighlights': { formatPriceModelLabel: (value) => value, getCertificateGradient: () => '', isQualityCertificate: () => false },
     '@/lib/chatWidgetEvents': { emitChatWidgetOpen() {}, PENDING_CHAT_START_KEY: 'pending', LEGACY_PENDING_CHAT_START_KEY: 'legacy' },
     '@/lib/storageMigration': { setMigratedItem() {} },

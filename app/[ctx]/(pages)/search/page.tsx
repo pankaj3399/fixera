@@ -1,5 +1,7 @@
 'use client';
 
+import type { ContentTranslations } from '@/lib/contentTranslations';
+import { ContentTranslationsProvider } from '@/components/i18n/ContentTranslationsProvider';
 import React, { useState, useEffect, Suspense, ComponentProps, useMemo, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -106,6 +108,8 @@ function SearchPageContent() {
     totalPages: 0,
   });
   const [projectFacets, setProjectFacets] = useState<ProjectFacetCounts | null>(null);
+  // Machine translations of card text and free-text facet labels (labels only; filters keep the values).
+  const [contentTranslations, setContentTranslations] = useState<ContentTranslations | undefined>(undefined);
 
   const [filterResetVersion, setFilterResetVersion] = useState(0);
   const [filters, setFilters] = useState<SearchFiltersState>({
@@ -334,6 +338,7 @@ function SearchPageContent() {
         results?: SearchResult[];
         pagination?: PaginationState;
         facets?: ProjectFacetCounts;
+        contentTranslations?: ContentTranslations;
       };
       if (controller.signal.aborted) return;
        if (searchType === 'projects' && Array.isArray(data.results)) {
@@ -375,6 +380,7 @@ function SearchPageContent() {
       // ranking stays consistent across pages.
       setResults((data.results ?? []) as SearchResult[]);
       setProjectFacets(searchType === 'projects' ? data.facets ?? null : null);
+      setContentTranslations(data.contentTranslations);
       setPagination((prev) => data.pagination ?? prev);
       trackProjectSearch({
         searchType,
@@ -470,6 +476,7 @@ function SearchPageContent() {
   };
 
   return (
+    <ContentTranslationsProvider value={contentTranslations}>
     <div className="bg-gray-50 min-h-screen">
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 pt-24">
         {/* Header */}
@@ -625,6 +632,7 @@ function SearchPageContent() {
         </div>
       </main>
     </div>
+    </ContentTranslationsProvider>
   );
 }
 

@@ -11,7 +11,8 @@ test('package tabs wrap names between words instead of breaking them mid-word', 
   // No shrink below 96px; the automatic min-width keeps the longest word whole.
   assert.match(tab[1], /\bflex-\[1_0_96px\]/)
   assert.doesNotMatch(tab[1], /\bmin-w-\[/, 'an explicit min-width would override the min-content floor')
-  assert.match(source, /title=\{subproject\.name\}/)
+  // The tab tooltip shows the (translated) package name.
+  assert.match(source, /title=\{ct\(subproject\.name\)\}/)
 })
 
 test('post-booking question examples no longer suggest asking for a start time or contact method', () => {

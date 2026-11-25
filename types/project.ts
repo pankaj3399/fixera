@@ -1,4 +1,5 @@
 import type { ProfessionalLevel } from '@/lib/professionalLevel'
+import type { ContentTranslations } from '@/lib/contentTranslations'
 
 export interface ProjectProfessionalInput {
   fieldName: string
@@ -105,6 +106,8 @@ export type PublicProfessionalDto = Omit<ProjectProfessionalDto, 'email' | 'phon
 
 export interface ProjectDto {
   _id: string
+  /** Stored machine translations of the project text in the request locale (see lib/contentTranslations). */
+  contentTranslations?: ContentTranslations
   title: string
   description: string
   category: string
