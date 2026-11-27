@@ -30,9 +30,10 @@ export function useSharedTableText() {
     price: t("tables.colPrice"),
     status: t("tables.colStatus"),
     invoice: t("tables.colInvoice"),
-    payoutDate: t("tables.colPayoutDate"),
-    payoutRefund: t("tables.colPayoutRefund"),
+    /** Pro only (FT2-13): payout date, amount and refund in one column. */
+    payout: t("tables.colPayout"),
     actions: t("tables.colActions"),
+    compare: t("tables.colCompare"),
     details: t("tables.colDetails"),
     bookingsTableLabel: t("tables.bookingsTableLabel"),
     quotesTableLabel: t("tables.quotesTableLabel"),

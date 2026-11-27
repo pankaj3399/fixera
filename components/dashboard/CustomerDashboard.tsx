@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   CheckCircle, Clock, CreditCard,
   GitCompareArrows, Loader2, Package, Plus, Search, X,
@@ -35,6 +34,7 @@ import { getCustomerActionItems, type ActionItem, type ActionNeededBooking, type
 import QuoteComparisonModal from "@/components/dashboard/QuoteComparisonModal"
 import SharedBookingsTable, { type SharedBookingRow } from "@/components/dashboard/SharedBookingsTable"
 import SharedQuotesTable from "@/components/dashboard/SharedQuotesTable"
+import CustomerBookingTimeline from "@/components/dashboard/CustomerBookingTimeline"
 
 type Booking = SharedBookingRow & {
   bookingType: "professional" | "project"
@@ -606,7 +606,13 @@ export default function CustomerDashboard() {
             </TabsList>
           </div>
 
-          <TabsContent value="my_bookings" className="space-y-6">
+          <TabsContent value="my_bookings">
+          {/* FT2-13: "Booking overview" and "Timeline" views at the top; stats and filters apply to both. */}
+          <Tabs defaultValue="overview" className="space-y-6">
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="overview">{t("customerDashboard.bookingViews.overview")}</TabsTrigger>
+              <TabsTrigger value="timeline">{t("customerDashboard.bookingViews.timeline")}</TabsTrigger>
+            </TabsList>
             <div className="grid md:grid-cols-3 gap-4">
               <Card className="bg-white/80 backdrop-blur border border-indigo-100 shadow-sm">
                 <CardHeader>
@@ -648,8 +654,6 @@ export default function CustomerDashboard() {
               </Card>
             </div>
 
-            {bookings.loading && renderLoadingSkeleton()}
-            <>
                 {renderSearchFilters(
                   bookingSearch, setBookingSearch, debouncedBookingSearch,
                   bookingStatusFilter, setBookingStatusFilter, CUSTOMER_BOOKING_STATUS_FILTERS,
@@ -683,6 +687,8 @@ export default function CustomerDashboard() {
                     />
                   </div>
                 </div>
+              <TabsContent value="overview" className="space-y-4">
+                {bookings.loading && renderLoadingSkeleton()}
                 {!bookings.loading && bookings.error && renderListError(bookings.error, () => gotoBookingsPage(bookings.page))}
                 {!bookings.loading && !bookings.error && bookings.items.length === 0 && renderEmptyState(t("customerDashboard.emptyBookings"))}
                 {!bookings.loading && !bookings.error && bookings.items.length > 0 && (
@@ -703,7 +709,16 @@ export default function CustomerDashboard() {
                   </>
                 )}
                 {!bookings.error && renderPager(bookings, gotoBookingsPage)}
-            </>
+              </TabsContent>
+              <TabsContent value="timeline">
+                <CustomerBookingTimeline
+                  statusFilter={bookingStatusFilter}
+                  serviceFilter={bookingServiceFilter}
+                  search={debouncedBookingSearch}
+                  address={debouncedAddressFilter}
+                />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           <TabsContent value="my_quotes" className="space-y-6">
@@ -734,18 +749,6 @@ export default function CustomerDashboard() {
                 {!quotes.loading && !quotes.error && quotes.items.length === 0 && renderEmptyState(t("customerDashboard.emptyQuotes"))}
                 {!quotes.loading && !quotes.error && quotes.items.length > 0 && (
                   <>
-                    <div className="mb-2 flex flex-wrap gap-2">
-                      {quotes.items.map((booking) => (
-                        <label key={booking._id} className="flex items-center gap-1.5 text-xs text-gray-600">
-                          <Checkbox
-                            checked={selectedQuotes.has(booking._id)}
-                            onCheckedChange={() => toggleQuoteSelection(booking)}
-                            aria-label={t("customerDashboard.selectForComparison", { title: booking.bookingNumber || booking._id })}
-                          />
-                          {booking.bookingNumber || booking._id}
-                        </label>
-                      ))}
-                    </div>
                     <SharedQuotesTable
                       bookings={quotes.items}
                       viewerRole="customer"
@@ -754,6 +757,11 @@ export default function CustomerDashboard() {
                       statusLabel={statusLabel}
                       chatLabel={t("customerDashboard.chat")}
                       acceptPayLabel={t("customerDashboard.acceptPay")}
+                      selection={{
+                        isSelected: (id) => selectedQuotes.has(id),
+                        onToggle: (booking) => toggleQuoteSelection(booking as Booking),
+                        label: (booking) => t("customerDashboard.selectForComparison", { title: booking.quotationNumber || booking.bookingNumber || booking._id }),
+                      }}
                       viewLabel={t("customerDashboard.viewDetails")}
                     />
                   </>

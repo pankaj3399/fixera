@@ -276,6 +276,7 @@ test('professional manager: an older list response never overwrites newer facet 
       '@/components/dashboard/QuoteComparisonModal': ui,
       '@/components/dashboard/BookingTimelineBoard': ui,
       '@/components/dashboard/RefundRequestsPanel': ui,
+      '@/components/ui/tabs': stubModule(),
       '@/components/dashboard/SharedBookingsTable': ui,
       '@/components/dashboard/SharedQuotesTable': ui,
       '@/contexts/CurrencyContext': { useCurrency: () => ({ formatMoney: amount => String(amount) }) },
@@ -351,6 +352,7 @@ test('customer dashboard: a failed list keeps its filters, offers a retry, and t
       '@/components/dashboard/QuoteComparisonModal': ui,
       '@/components/dashboard/SharedBookingsTable': ui,
       '@/components/dashboard/SharedQuotesTable': ui,
+      '@/components/dashboard/CustomerBookingTimeline': ui,
     })
     const render = () => state.render(() => Component())
     render()
@@ -691,6 +693,7 @@ test('customer dashboard: Retry repeats the page that failed, not the last page 
       '@/components/dashboard/QuoteComparisonModal': ui,
       '@/components/dashboard/SharedBookingsTable': ui,
       '@/components/dashboard/SharedQuotesTable': ui,
+      '@/components/dashboard/CustomerBookingTimeline': ui,
     })
     const render = () => state.render(() => Component())
     render()
@@ -1672,6 +1675,7 @@ function mountCustomerDashboard(state, listRequests) {
       '@/components/dashboard/QuoteComparisonModal': ui,
       '@/components/dashboard/SharedBookingsTable': ui,
       '@/components/dashboard/SharedQuotesTable': ui,
+      '@/components/dashboard/CustomerBookingTimeline': ui,
     }),
   }
 }
@@ -1898,6 +1902,7 @@ test('professional timeline: an older response never overwrites a newer filter; 
       '@/components/dashboard/QuoteComparisonModal': ui,
       '@/components/dashboard/BookingTimelineBoard': { __esModule: true, default: Board },
       '@/components/dashboard/RefundRequestsPanel': ui,
+      '@/components/ui/tabs': stubModule(),
       '@/components/dashboard/SharedBookingsTable': ui,
       '@/components/dashboard/SharedQuotesTable': ui,
       '@/contexts/CurrencyContext': { useCurrency: () => ({ formatMoney: amount => String(amount) }) },
@@ -2239,6 +2244,8 @@ test('comparison tabs: every package is a visible, selectable tab in a wrapping 
     '@/components/professional/project-wizard/Step2Subprojects': { PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME: new Map() },
     '@/lib/contentTranslations': await import('../lib/contentTranslations.ts'),
     '@/components/i18n/ContentTranslationsProvider': { useContentText: () => (value) => value },
+    '@/components/search/PackageDurationLabel': { usePackageDurationText: () => null },
+    '@/lib/packageDuration': await import('../lib/packageDuration.ts'),
   })
   const selected = []
   const props = { subprojects: [0, 1, 2, 3, 4].map(i => ({ name: `Package ${i}`, pricing: { type: 'fixed', amount: 100 }, included: [] })), selectedIndex: 3, onSelectPackage() {}, onSelectIndex: i => selected.push(i) }
