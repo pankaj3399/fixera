@@ -173,7 +173,7 @@
     "description": "Je niveaukorting en eventuele terugkerende-klantkorting worden automatisch berekend voor de betaling.",
     "customer": "Klant"
   },
-  "chargeNote": "Prijzen worden in EUR weergegeven en afgerekend.",
+  "chargeNote": "Bedragen zijn omgerekend ter informatie. Je betaalt {amount} in EUR.",
   "bookingDescription": {
     "package": "Pakket: {value}",
     "estimatedUsage": "Geschatte hoeveelheid: {value}",

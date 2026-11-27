@@ -55,6 +55,7 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 import type { PublicProjectDto as Project } from '@/types/project';
 import { normalizePublicProject } from '@/lib/publicProjectShape';
+import { loadCheckoutDraft, RESUME_BOOKING_PARAM, type CheckoutDraft } from '@/lib/booking/checkoutDraft';
 import {
   getAdminTagStyle,
   formatAdminTagLabel,
@@ -319,6 +320,8 @@ export default function ProjectDetailView({ initialProject, serverNow }: Project
     translateContentText(project?.contentTranslations, value);
   const [loading, setLoading] = useState(initialProject === null);
   const [showBookingForm, setShowBookingForm] = useState(false);
+  // FT2-4B: the payment page's back button returns here with the wizard draft.
+  const [resumeDraft, setResumeDraft] = useState<CheckoutDraft | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [selectedSubprojectIndex, setSelectedSubprojectIndex] = useState<
     number | null
@@ -482,6 +485,21 @@ export default function ProjectDetailView({ initialProject, serverNow }: Project
     const count = initialProject.subprojects.length;
     setViewedSubprojectIndex((index) => Math.min(index, Math.max(0, count - 1)));
   }, [initialProject]);
+
+  // FT2-4B: reopen the booking wizard with the answers the customer had when
+  // they went back from the payment page.
+  useEffect(() => {
+    if (!project || typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get(RESUME_BOOKING_PARAM) !== '1') return;
+    url.searchParams.delete(RESUME_BOOKING_PARAM);
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    const draft = loadCheckoutDraft(project._id);
+    if (!draft || draft.selectedPackageIndex === null || draft.selectedPackageIndex >= project.subprojects.length) return;
+    setResumeDraft(draft);
+    setSelectedSubprojectIndex(draft.selectedPackageIndex);
+    setShowBookingForm(true);
+  }, [project]);
 
   // The package selection stays only while the current project still has that package.
   useEffect(() => {
@@ -775,8 +793,10 @@ export default function ProjectDetailView({ initialProject, serverNow }: Project
           onBack={() => {
             setShowBookingForm(false);
             setSelectedSubprojectIndex(null);
+            setResumeDraft(null);
           }}
           selectedSubprojectIndex={selectedSubprojectIndex}
+          resumeDraft={resumeDraft}
         />
       </ContentTranslationsProvider>
     );

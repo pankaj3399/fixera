@@ -173,7 +173,7 @@
     "description": "Vos remises de niveau et toute remise client fidèle sont calculées automatiquement avant le paiement.",
     "customer": "Client"
   },
-  "chargeNote": "Les prix sont affichés et facturés en EUR.",
+  "chargeNote": "Les montants sont convertis à titre indicatif. Vous serez débité de {amount} en EUR.",
   "bookingDescription": {
     "package": "Forfait : {value}",
     "estimatedUsage": "Quantité estimée : {value}",

@@ -69,6 +69,7 @@ function view(respond) {
     '@/contexts/CurrencyContext': { useCurrency: () => ({ formatPrice: (value) => String(value) }) },
     '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-US' }) },
     '@/lib/publicProjectShape': { normalizePublicProject: (value) => value },
+    '@/lib/booking/checkoutDraft': { loadCheckoutDraft: () => null, RESUME_BOOKING_PARAM: 'resumeBooking' },
     '@/lib/professionalLevel': { getAdminTagStyle: () => '', formatAdminTagLabel: (value) => value, formatResponseTime: () => '' },
     '@/components/dashboard/TierBadge': { __esModule: true, default: () => null },
     '@/lib/tierColors': { useTierColors: () => ({ levelColor: () => '' }) },

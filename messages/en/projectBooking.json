@@ -173,7 +173,7 @@
     "description": "Your tier savings and any returning-customer discount are calculated automatically before payment.",
     "customer": "Customer"
   },
-  "chargeNote": "Prices are shown and charged in EUR.",
+  "chargeNote": "Amounts are converted for display. You'll be charged {amount} in EUR.",
   "bookingDescription": {
     "package": "Package: {value}",
     "estimatedUsage": "Estimated usage: {value}",

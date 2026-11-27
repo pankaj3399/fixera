@@ -45,6 +45,7 @@ import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { useAuth } from '@/contexts/AuthContext';
+import { clearCheckoutDraft, saveCheckoutDraft, type CheckoutDraft } from '@/lib/booking/checkoutDraft';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 import { getViewerTimezone, normalizeTimezone } from '@/lib/timezoneDisplay';
@@ -119,6 +120,8 @@ interface ProjectBookingFormProps {
   project: PublicProjectDto;
   onBack: () => void;
   selectedSubprojectIndex?: number | null;
+  /** FT2-4B: answers restored after going back from the payment page. */
+  resumeDraft?: CheckoutDraft | null;
 }
 
 interface RFQAnswer {
@@ -288,6 +291,7 @@ export default function ProjectBookingForm({
   project,
   onBack,
   selectedSubprojectIndex,
+  resumeDraft,
 }: ProjectBookingFormProps) {
   const { customerPrice, customerPackagePrice: fetchPackageCustomerTotal, pricingReady, pricingError, retryPricing, loyaltyLoaded } = useCustomerPricing();
   const customerPricingReady = pricingReady && loyaltyLoaded;
@@ -297,15 +301,16 @@ export default function ProjectBookingForm({
   // Machine translations of the professional's/catalogue text (labels only; values are submitted as stored).
   const ct = useContentText();
   const getErrorText = useErrorMessage();
-  const { formatMoney, currency } = useCurrency();
+  const { formatMoney, formatDisplayMoney, currency } = useCurrency();
   const { intl, dateFns } = useFormatLocale();
 
-  // All amounts in this form are EUR: it is the step right before payment, so
-  // nothing is converted — only formatted in the active locale.
+  // CUR: every amount in this form is EUR (prices and the charge). Until the
+  // payment is done they are shown in the visitor's display currency, like the
+  // search and project pages; the review step notes the EUR charge.
   const formatAmount = useCallback(
     (amount?: number | null) =>
-      typeof amount === 'number' ? formatMoney(amount) : '…',
-    [formatMoney]
+      typeof amount === 'number' ? formatDisplayMoney(amount, 'EUR') : '…',
+    [formatDisplayMoney]
   );
 
   // Unit labels for the price model: known models get a translated label, an
@@ -398,7 +403,7 @@ export default function ProjectBookingForm({
   >(
     typeof selectedSubprojectIndex === 'number' ? selectedSubprojectIndex : null
   );
-  const [estimatedUsage, setEstimatedUsage] = useState<number>(1);
+  const [estimatedUsage, setEstimatedUsage] = useState<number>(resumeDraft?.estimatedUsage ?? 1);
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [showCalendar, setShowCalendar] = useState(false);
@@ -415,21 +420,21 @@ export default function ProjectBookingForm({
     throughputDays?: number;
   } | null>(null);
   const [loadingScheduleWindow, setLoadingScheduleWindow] = useState(false);
-  const [rfqAnswers, setRFQAnswers] = useState<RFQAnswer[]>([]);
-  const [vatAnswers, setVatAnswers] = useState<Record<string, VatAnswer>>({});
+  const [rfqAnswers, setRFQAnswers] = useState<RFQAnswer[]>((resumeDraft?.rfqAnswers as RFQAnswer[] | undefined) ?? []);
+  const [vatAnswers, setVatAnswers] = useState<Record<string, VatAnswer>>((resumeDraft?.vatAnswers as Record<string, VatAnswer> | undefined) ?? {});
   const [vatPreview, setVatPreview] = useState<VatPreviewDecision | null>(null);
-  const [proceedAtStandardVat, setProceedAtStandardVat] = useState(false);
+  const [proceedAtStandardVat, setProceedAtStandardVat] = useState(resumeDraft?.proceedAtStandardVat ?? false);
   const [uploadingQuestionIndexes, setUploadingQuestionIndexes] = useState<Set<number>>(new Set());
   const [selectedExtraOptions, setSelectedExtraOptions] = useState<number[]>(
-    []
+    resumeDraft?.selectedExtraOptions ?? []
   );
-  const [additionalNotes, setAdditionalNotes] = useState('');
-  const [rfqAttachments, setRfqAttachments] = useState<{ url: string; name: string }[]>([]);
+  const [additionalNotes, setAdditionalNotes] = useState(resumeDraft?.additionalNotes ?? '');
+  const [rfqAttachments, setRfqAttachments] = useState<{ url: string; name: string }[]>(resumeDraft?.rfqAttachments ?? []);
   const [uploadingRfqAttachment, setUploadingRfqAttachment] = useState(false);
-  const [useProfileAddress, setUseProfileAddress] = useState(true);
-  const [manualAddress, setManualAddress] = useState('');
-  const [isServiceAddressValid, setIsServiceAddressValid] = useState(false);
-  const [servicePlace, setServicePlace] = useState<PlaceData | undefined>();
+  const [useProfileAddress, setUseProfileAddress] = useState(resumeDraft?.useProfileAddress ?? true);
+  const [manualAddress, setManualAddress] = useState(resumeDraft?.manualAddress ?? '');
+  const [isServiceAddressValid, setIsServiceAddressValid] = useState(resumeDraft?.isServiceAddressValid ?? false);
+  const [servicePlace, setServicePlace] = useState<PlaceData | undefined>(resumeDraft?.servicePlace as PlaceData | undefined);
   const selectedPackage =
     selectedPackageIndex !== null
       ? project.subprojects[selectedPackageIndex]
@@ -706,6 +711,23 @@ export default function ProjectBookingForm({
     }
     setHasUserSelectedDate(false);
   }, [selectedPackageIndex]);
+
+  // FT2-4B: back from the payment page. Declared after the package effect so
+  // the restored date wins over its reset on mount; the review step shows the
+  // restored answers. One-shot: the draft is consumed here.
+  const pendingResumeRef = useRef(resumeDraft ?? null);
+  useEffect(() => {
+    const draft = pendingResumeRef.current;
+    if (!draft) return;
+    pendingResumeRef.current = null;
+    clearCheckoutDraft(project._id);
+    if (draft.selectedDate) {
+      setHasUserSelectedDate(true);
+      setSelectedDate(draft.selectedDate);
+      setSelectedTime(draft.selectedTime || '');
+    }
+    setCurrentStep(4);
+  }, [project._id]);
 
   useEffect(() => {
     if (!isUnitPricing || typeof selectedPackageIndex !== 'number') return;
@@ -2615,6 +2637,28 @@ export default function ProjectBookingForm({
               project,
               selectedSubprojectIndex: selectedPackageIndex,
             });
+            // FT2-4B: no booking exists until payment; keep the answers so
+            // the payment page's back button returns to this wizard intact.
+            saveCheckoutDraft(
+              project._id,
+              {
+                selectedPackageIndex,
+                estimatedUsage,
+                selectedDate,
+                selectedTime,
+                rfqAnswers,
+                vatAnswers,
+                proceedAtStandardVat,
+                selectedExtraOptions,
+                additionalNotes,
+                rfqAttachments,
+                useProfileAddress,
+                manualAddress,
+                isServiceAddressValid,
+                servicePlace,
+              },
+              data.checkout?.id
+            );
             router.replace(`/bookings/${data.booking._id}/payment`);
             return;
           }
@@ -4774,11 +4818,6 @@ export default function ProjectBookingForm({
                               )}
                             </span>
                           </div>
-                          {currency !== 'EUR' && (
-                            <p className='text-xs text-gray-600'>
-                              {t('chargeNote')}
-                            </p>
-                          )}
                         </>
                       )}
 
@@ -4876,6 +4915,19 @@ export default function ProjectBookingForm({
                             </>
                           )}
                         </div>
+                      )}
+
+                      {finalDisplayTotal > 0 && currency !== 'EUR' && customerPricingReady && (
+                        <p className='text-xs text-gray-600' data-testid='wizard-charge-note'>
+                          {t('chargeNote', {
+                            amount: formatMoney(
+                              vatPreview && !vatPreview.reverseCharge && vatPreview.action !== 'rfq'
+                                ? Math.round(finalDisplayTotal * (100 + vatPreview.appliedRate)) / 100
+                                : finalDisplayTotal,
+                              'EUR'
+                            ),
+                          })}
+                        </p>
                       )}
 
                       {selectedPackage.pricing.type !== 'rfq' && (
