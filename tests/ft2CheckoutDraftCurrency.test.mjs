@@ -118,6 +118,16 @@ test('CR: the package is restored by its id, never by its position', () => {
   assert.equal(findDraftPackageIndex(packages, {}), null)
 })
 
+test('CR: a same-named package with a different id is not the saved package', () => {
+  // pkg-b "Premium" (the saved one) was removed and pkg-z, also named "Premium", was added.
+  assert.equal(findDraftPackageIndex([{ _id: 'pkg-a', name: 'Basic' }, { _id: 'pkg-z', name: 'Premium' }], values), null)
+  // A different-id package is not counted, so it cannot make an id-less name match ambiguous either.
+  assert.equal(findDraftPackageIndex([{ _id: 'pkg-z', name: 'Premium' }, { name: 'Premium' }], values), 1)
+  // The name fallback still applies when either side has no id.
+  assert.equal(findDraftPackageIndex([{ name: 'Premium' }], values), 0)
+  assert.equal(findDraftPackageIndex([{ _id: 'pkg-z', name: 'Premium' }], { selectedPackageName: 'Premium' }), 0)
+})
+
 test('CR: the restored hourly time survives slot initialization until the date changes', () => {
   const restored = { date: '2027-01-11', time: '14:00' }
   // Date initialization left no time (or the first slot): the restored time wins.

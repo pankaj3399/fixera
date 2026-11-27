@@ -10,7 +10,7 @@ const { renderToStaticMarkup } = await import('react-dom/server')
 const { NextIntlClientProvider } = await import('next-intl')
 const { default: DualVerificationComponent } = await import('@/components/DualVerificationComponent')
 const { default: SignupContactEditor } = await import('@/components/auth/SignupContactEditor')
-const { contactSaveOutcome, resendDeadlineAfterContactSave, splitSignupPhone } = await import('@/lib/auth/signupContact.ts')
+const { contactSaveMessageKey, contactSaveOutcome, resendDeadlineAfterContactSave, splitSignupPhone } = await import('@/lib/auth/signupContact.ts')
 const { SIGNUP_OTP_RESEND_COOLDOWN_SECONDS } = await import('@/lib/auth/signupOtpCooldown.ts')
 
 const messages = (locale) => Object.fromEntries(['auth', 'account', 'common'].map((ns) => [
@@ -89,8 +89,40 @@ test('CR: a changed contact without a sent code drops its old cooldown and gets 
   assert.equal(contactSaveOutcome(base), 'unchanged')
   assert.equal(contactSaveOutcome({ ...base, emailChanged: true, emailOtpSent: true }), 'sent')
   assert.equal(contactSaveOutcome({ ...base, emailChanged: true, emailOtpSent: false }), 'notSent')
-  assert.equal(contactSaveOutcome({ ...base, emailChanged: true, emailOtpSent: true, phoneChanged: true, phoneOtpSent: false }), 'notSent')
+  assert.equal(contactSaveOutcome({ ...base, emailChanged: true, emailOtpSent: true, phoneChanged: true, phoneOtpSent: false }), 'phoneNotSent')
   for (const locale of ['en', 'nl', 'fr']) {
     assert.ok(messages(locale).auth.dualVerification.changeContact.savedNotSentToast, locale)
   }
+})
+
+test('CR: when both contacts change but only one code is sent, the warning names the channel to resend', () => {
+  const both = { email: 'a@b.co', phone: '+32470123456', emailChanged: true, phoneChanged: true }
+  assert.equal(contactSaveOutcome({ ...both, emailOtpSent: true, phoneOtpSent: false }), 'phoneNotSent')
+  assert.equal(contactSaveOutcome({ ...both, emailOtpSent: false, phoneOtpSent: true }), 'emailNotSent')
+  assert.equal(contactSaveOutcome({ ...both, emailOtpSent: false, phoneOtpSent: false }), 'notSent')
+  assert.equal(contactSaveOutcome({ ...both, emailOtpSent: true, phoneOtpSent: true }), 'sent')
+  // Only the phone changed and its code was sent; the unchanged email needs nothing.
+  assert.equal(contactSaveOutcome({ ...both, emailChanged: false, emailOtpSent: false, phoneOtpSent: true }), 'sent')
+  const text = (locale, outcome) => messages(locale).auth.dualVerification.changeContact[contactSaveMessageKey(outcome)]
+  const channelWords = {
+    en: { email: /email/i, phone: /phone/i },
+    nl: { email: /e-mail/i, phone: /telefoon/i },
+    fr: { email: /e-mail/i, phone: /téléphone/i },
+  }
+  for (const locale of ['en', 'nl', 'fr']) {
+    const emailMissing = text(locale, 'emailNotSent')
+    const phoneMissing = text(locale, 'phoneNotSent')
+    assert.ok(emailMissing && phoneMissing, locale)
+    assert.notEqual(emailMissing, phoneMissing, locale)
+    assert.notEqual(emailMissing, text(locale, 'notSent'), locale)
+    for (const message of [emailMissing, phoneMissing]) {
+      assert.match(message, channelWords[locale].email, locale)
+      assert.match(message, channelWords[locale].phone, locale)
+    }
+  }
+  // The English text says exactly which channel got no code.
+  assert.match(text('en', 'emailNotSent'), /sent to your phone, but no new code could be sent to your email/)
+  assert.match(text('en', 'phoneNotSent'), /sent to your email address, but no new code could be sent to your phone/)
+  assert.match(text('fr', 'phoneNotSent'), /envoyé à votre adresse e-mail, mais aucun nouveau code n'a pu être envoyé à votre téléphone/)
+  assert.match(text('nl', 'emailNotSent'), /naar je telefoon verstuurd, maar er kon geen nieuwe code naar je e-mailadres/)
 })

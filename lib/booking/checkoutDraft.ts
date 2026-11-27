@@ -147,8 +147,9 @@ export function clearAllCheckoutDrafts(
 }
 
 /**
- * The current position of the draft's package, found by its id (or, for a
- * record without an id, by a name only one package has). Null when the
+ * The current position of the draft's package, found by its id (or, when the
+ * saved or current record has no id, by a name only one such package has). A
+ * name match whose id differs from the saved id is rejected. Null when the
  * package is gone: the wizard must not reopen with a different package.
  */
 export function findDraftPackageIndex(
@@ -160,8 +161,12 @@ export function findDraftPackageIndex(
     if (byId >= 0) return byId;
   }
   if (draft.selectedPackageName) {
+    const savedId = draft.selectedPackageId;
     const matches = subprojects.reduce<number[]>((found, pkg, index) => {
-      if (pkg?.name === draft.selectedPackageName) found.push(index);
+      if (pkg?.name !== draft.selectedPackageName) return found;
+      // Same name but a different id is a different package, not the saved one.
+      if (savedId && pkg?._id && pkg._id !== savedId) return found;
+      found.push(index);
       return found;
     }, []);
     if (matches.length === 1) return matches[0];

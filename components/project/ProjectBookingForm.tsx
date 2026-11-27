@@ -417,6 +417,8 @@ export default function ProjectBookingForm({
   const [showCalendar, setShowCalendar] = useState(false);
   const [hasUserSelectedDate, setHasUserSelectedDate] = useState(false);
   const [serverSlotsForSelectedDate, setServerSlotsForSelectedDate] = useState<string[] | null>(null);
+  // The date the loaded server slots belong to: they are authoritative for that date only.
+  const [serverSlotsDate, setServerSlotsDate] = useState<string | null>(null);
   const [serverSlotsError, setServerSlotsError] = useState(false);
   const [loadingServerSlots, setLoadingServerSlots] = useState(false);
   const [scheduleWindow, setScheduleWindow] = useState<{
@@ -891,7 +893,16 @@ export default function ProjectBookingForm({
     if (Number.isNaN(dateObj.getTime())) {
       return;
     }
-    const slots = generateTimeSlotsForDate(dateObj);
+    // Once the server's slots for this date have loaded they are the
+    // authoritative list; the client-generated slots (which may use default
+    // hours when working hours failed to load) only stand in until then.
+    const serverSlots = serverSlotsForSelectedDate && serverSlotsDate === selectedDate ? serverSlotsForSelectedDate : null;
+    const restored = restoredTimeRef.current;
+    // The server no longer offers the restored time: drop it.
+    if (serverSlots && restored && restored.date === selectedDate && !serverSlots.includes(restored.time)) {
+      restoredTimeRef.current = null;
+    }
+    const slots = serverSlots ?? generateTimeSlotsForDate(dateObj);
     const nextTime = pickHourlySlot(slots, selectedTime, selectedDate, restoredTimeRef.current);
     if (nextTime !== selectedTime) {
       setSelectedTime(nextTime);
@@ -904,12 +915,15 @@ export default function ProjectBookingForm({
     selectedPackage,
     bookedExecution,
     selectedTime,
+    serverSlotsForSelectedDate,
+    serverSlotsDate,
   ]);
 
   useEffect(() => {
     if (projectMode !== 'hours' || !selectedDate) {
       latestSlotsRequestRef.current += 1;
       setServerSlotsForSelectedDate(null);
+      setServerSlotsDate(null);
       setServerSlotsError(false);
       setLoadingServerSlots(false);
       return;
@@ -921,6 +935,7 @@ export default function ProjectBookingForm({
     const run = async () => {
       try {
         setServerSlotsForSelectedDate(null);
+        setServerSlotsDate(null);
         setServerSlotsError(false);
         setLoadingServerSlots(true);
         let url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/available-slots?date=${selectedDate}`;
@@ -943,6 +958,7 @@ export default function ProjectBookingForm({
           return;
         }
         setServerSlotsForSelectedDate(data.slots as string[]);
+        setServerSlotsDate(selectedDate);
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return;
         if (isCurrent()) {
@@ -958,18 +974,6 @@ export default function ProjectBookingForm({
     run();
     return () => controller.abort();
   }, [project._id, selectedDate, selectedPackageIndex, projectMode, estimatedUsage, isUnitPricing]);
-
-  useEffect(() => {
-    if (!serverSlotsForSelectedDate) return;
-    // The server's slots are authoritative: a restored time it no longer offers is dropped.
-    const restored = restoredTimeRef.current;
-    if (restored && restored.date === selectedDate && !serverSlotsForSelectedDate.includes(restored.time)) {
-      restoredTimeRef.current = null;
-    }
-    if (!selectedTime) return;
-    if (serverSlotsForSelectedDate.includes(selectedTime)) return;
-    setSelectedTime(serverSlotsForSelectedDate[0] || '');
-  }, [serverSlotsForSelectedDate, selectedTime, selectedDate]);
 
   const fetchScheduleWindow = useCallback(async (startDate: string, startTime?: string) => {
     const requestId = ++scheduleWindowRequestRef.current;

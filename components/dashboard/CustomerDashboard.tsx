@@ -99,6 +99,8 @@ const CUSTOMER_ACTION_ITEM_KEYS = {
 
 const PAGE_SIZE = 20
 
+type ListQuery = { page: number; status: string; service: string; search: string; address: string }
+
 interface ListState {
   items: Booking[]
   page: number
@@ -215,12 +217,32 @@ export default function CustomerDashboard() {
   // Per-list request counters: only the newest request for a list may write
   // its rows, counts and pager (older, slower responses are discarded).
   const latestListRequest = useRef({ quotes: 0, bookings: 0 })
+  // The bookings list's last successfully loaded query (filters + the page
+  // the server returned), kept apart from the in-flight one: a timeline
+  // refresh reloads what is on screen, never an old page with new filters.
+  const loadedBookingsQueryRef = useRef<ListQuery | null>(null)
+  const requestedBookingsQueryRef = useRef<{ query: ListQuery; settled: boolean } | null>(null)
+  // A timeline change that arrived while a bookings request was in flight:
+  // reload once that request has settled instead of superseding it.
+  const bookingsRefreshQueuedRef = useRef(false)
+  const fetchListRef = useRef<((kind: "quotes" | "bookings", opts: ListQuery) => Promise<void>) | null>(null)
   const fetchList = useCallback(async (
     kind: "quotes" | "bookings",
-    opts: { page: number; status: string; service: string; search: string; address: string },
+    opts: ListQuery,
   ) => {
     const setState = kind === "quotes" ? setQuotes : setBookings
     const requestId = ++latestListRequest.current[kind]
+    const settleBookings = (loaded: ListQuery | null) => {
+      if (kind !== "bookings") return
+      if (requestedBookingsQueryRef.current) requestedBookingsQueryRef.current.settled = true
+      if (loaded) loadedBookingsQueryRef.current = loaded
+      if (!bookingsRefreshQueuedRef.current) return
+      bookingsRefreshQueuedRef.current = false
+      // The settled response may predate the timeline change: load it again.
+      // A failed request is left to its Retry, which reloads fresh data.
+      if (loaded) void fetchListRef.current?.("bookings", loaded)
+    }
+    if (kind === "bookings") requestedBookingsQueryRef.current = { query: opts, settled: false }
     const queryKey = JSON.stringify([opts.status, opts.service, opts.search.trim(), kind === "bookings" ? opts.address.trim() : ""])
     // Another page of the same query keeps its totals while loading; a new
     // filter makes them unknown until its own response arrives.
@@ -253,6 +275,7 @@ export default function CustomerDashboard() {
       if (!response.ok || !data.success) {
         // Remember the page that failed, so Retry repeats that request.
         setState((prev) => failedListState(prev, opts.page, getErrorText(data, t("customerDashboard.loadFailed"))))
+        settleBookings(null)
         return
       }
       if (kind === "quotes" && Array.isArray(data.bookings)) {
@@ -262,9 +285,10 @@ export default function CustomerDashboard() {
           return next
         })
       }
+      const loadedPage = data.pagination?.page ?? opts.page
       setState({
         items: Array.isArray(data.bookings) ? data.bookings : [],
-        page: data.pagination?.page ?? opts.page,
+        page: loadedPage,
         totalPages: data.pagination?.totalPages ?? 1,
         // A successful but partial response keeps what it lacks unknown:
         // only an explicit finite count is a count (0 included).
@@ -277,11 +301,14 @@ export default function CustomerDashboard() {
         loading: false,
         error: null,
       })
+      settleBookings({ ...opts, page: Number.isFinite(Number(loadedPage)) && Number(loadedPage) >= 1 ? Number(loadedPage) : opts.page })
     } catch (err) {
       if (requestId !== latestListRequest.current[kind]) return
       setState((prev) => failedListState(prev, opts.page, getErrorText(err, t("customerDashboard.loadFailed"))))
+      settleBookings(null)
     }
   }, [getErrorText, t])
+  useEffect(() => { fetchListRef.current = fetchList }, [fetchList])
 
   // Server-driven tab lists: every row on every page is reachable, counts
   // come from the server facet (never page-derived).
@@ -336,22 +363,24 @@ export default function CustomerDashboard() {
   }, [loadActions])
 
   // A customer action on the timeline changes bookings the Overview lists:
-  // reload its current page with the current filters, and the action items.
-  const bookingsQueryRef = useRef({ page: 1, status: "all", service: "all", search: "", address: "" })
-  useEffect(() => {
-    // The loaded page belongs to the current filters only once their response arrived.
-    const currentKey = JSON.stringify([bookingStatusFilter, bookingServiceFilter, debouncedBookingSearch.trim(), debouncedAddressFilter.trim()])
-    bookingsQueryRef.current = {
-      page: bookings.queryKey === currentKey ? bookings.page || 1 : 1,
-      status: bookingStatusFilter,
-      service: bookingServiceFilter,
-      search: debouncedBookingSearch,
-      address: debouncedAddressFilter,
-    }
-  }, [bookings.page, bookings.queryKey, bookingStatusFilter, bookingServiceFilter, debouncedBookingSearch, debouncedAddressFilter])
+  // reload the last successfully loaded query (its filters and page), and
+  // the action items. While a bookings request is in flight (a new filter's
+  // page 1, another page, a retry) it is not superseded: the reload follows
+  // once it settles, for the query it loaded.
   const refreshAfterTimelineChange = useCallback(() => {
-    void fetchList("bookings", bookingsQueryRef.current)
     void loadActions()
+    const requested = requestedBookingsQueryRef.current
+    if (requested && !requested.settled) {
+      bookingsRefreshQueuedRef.current = true
+      return
+    }
+    const loaded = loadedBookingsQueryRef.current
+    const sameFilters = (a: ListQuery, b: ListQuery) =>
+      a.status === b.status && a.service === b.service && a.search.trim() === b.search.trim() && a.address.trim() === b.address.trim()
+    // The last request failed for other filters: nothing loaded belongs to
+    // them, so reload that request (as Retry would) rather than old filters.
+    const query = loaded && (!requested || sameFilters(loaded, requested.query)) ? loaded : requested?.query
+    if (query) void fetchList("bookings", query)
   }, [fetchList, loadActions])
 
   useEffect(() => {

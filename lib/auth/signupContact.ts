@@ -51,9 +51,38 @@ export function resendDeadlineAfterContactSave(
   return sent ? freshDeadline() : null
 }
 
-/** Which confirmation a contact save gets: decided by the codes actually sent. */
-export function contactSaveOutcome(update: SignupContactUpdate): 'unchanged' | 'sent' | 'notSent' {
+export type ContactSaveOutcome = 'unchanged' | 'sent' | 'notSent' | 'emailNotSent' | 'phoneNotSent'
+
+/**
+ * Which confirmation a contact save gets: decided by the codes actually sent.
+ * When both contacts changed but only one received a code, the outcome names
+ * the channel that did not ('emailNotSent' / 'phoneNotSent'), so the customer
+ * knows which one to resend. 'notSent' means no changed contact received one.
+ */
+export function contactSaveOutcome(update: SignupContactUpdate): ContactSaveOutcome {
   if (!update.emailChanged && !update.phoneChanged) return 'unchanged'
-  if ((update.emailChanged && !update.emailOtpSent) || (update.phoneChanged && !update.phoneOtpSent)) return 'notSent'
-  return 'sent'
+  const emailMissing = update.emailChanged && !update.emailOtpSent
+  const phoneMissing = update.phoneChanged && !update.phoneOtpSent
+  if (!emailMissing && !phoneMissing) return 'sent'
+  if (emailMissing && update.phoneChanged && update.phoneOtpSent) return 'emailNotSent'
+  if (phoneMissing && update.emailChanged && update.emailOtpSent) return 'phoneNotSent'
+  return 'notSent'
+}
+
+/** The auth message (under dualVerification.changeContact) for a save outcome. */
+export type ContactSaveMessageKey =
+  | 'unchangedToast'
+  | 'savedToast'
+  | 'savedNotSentToast'
+  | 'savedEmailNotSentToast'
+  | 'savedPhoneNotSentToast'
+
+export function contactSaveMessageKey(outcome: ContactSaveOutcome): ContactSaveMessageKey {
+  switch (outcome) {
+    case 'unchanged': return 'unchangedToast'
+    case 'sent': return 'savedToast'
+    case 'emailNotSent': return 'savedEmailNotSentToast'
+    case 'phoneNotSent': return 'savedPhoneNotSentToast'
+    default: return 'savedNotSentToast'
+  }
 }
