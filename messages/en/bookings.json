@@ -716,7 +716,9 @@
       "quotation": "Quotation",
       "payments": "Payments",
       "activity": "Activity",
-      "bookingRfq": "Quotation request"
+      "bookingRfq": "Quotation request",
+      "unavailableNoQuotation": "This booking has no quotation.",
+      "unavailableNotBooked": "Available once the quotation has been booked and paid."
     },
     "fields": {
       "unknown": "Unknown",
@@ -912,6 +914,7 @@
       "scheduleLocationTitle": "Booking schedule & service address",
       "scheduleLocationNote": "Values captured with the booking or quotation when available.",
       "rfqTitle": "Request (RFQ) wizard data",
+      "wizardTitle": "Booking wizard data",
       "rfqDescription": "Every stored question and answer, including files and unanswered questions.",
       "requestDescription": "Request description",
       "additionalNotes": "Additional notes",

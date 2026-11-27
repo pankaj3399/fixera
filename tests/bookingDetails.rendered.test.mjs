@@ -259,18 +259,31 @@ test('quotation labels from actual metadata contain the canonical number once', 
 
 test('legacy stored answers render with recorded wording and missing question definitions are appended', () => {
   const payload = fixture('legacy-customer')
-  const html = render(
+  // BPQ-1: a booking that had a quotation shows the RFQ wizard data on the
+  // Quotation tab only, not again on the Booking tab.
+  const bookingHtml = render(
     React.createElement(BookingPanel, { booking: payload.booking, details: payload.details })
+  )
+  assert.doesNotMatch(bookingHtml, /Building type at booking\?/)
+  assert.doesNotMatch(bookingHtml, /Request \(RFQ\) wizard data|Booking wizard data/)
+  const html = render(
+    React.createElement(QuotationPanel, {
+      booking: payload.booking,
+      details: payload.details,
+      pathname: '/bookings/test',
+      search: '',
+    })
   )
   assert.match(html, /Building type at booking\?/)
   assert.match(html, /Which extras\?/)
   assert.match(html, /Balcony/)
   assert.match(html, /Cellar/)
-  assert.match(html, /Pets present\?/)
-  assert.match(html, /Pets present\?[\s\S]{0,3000}>No</)
   assert.doesNotMatch(html, /Current live question\?/)
-  assert.doesNotMatch(html, /Current live parking question\?/)
-  assert.match(html, /recorded answer wording/)
+  // Post-booking answers stay on the Booking tab.
+  assert.match(bookingHtml, /Pets present\?/)
+  assert.match(bookingHtml, /Pets present\?[\s\S]{0,3000}>No</)
+  assert.doesNotMatch(bookingHtml, /Current live parking question\?/)
+  assert.match(bookingHtml, /recorded answer wording/)
 })
 
 test('an unsubmitted snapshot booking uses the recorded post-booking questions', () => {

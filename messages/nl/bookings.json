@@ -716,7 +716,9 @@
       "quotation": "Offerte",
       "payments": "Betalingen",
       "activity": "Activiteit",
-      "bookingRfq": "Offerteaanvraag"
+      "bookingRfq": "Offerteaanvraag",
+      "unavailableNoQuotation": "Deze boeking heeft geen offerte.",
+      "unavailableNotBooked": "Beschikbaar zodra de offerte geboekt en betaald is."
     },
     "fields": {
       "unknown": "Onbekend",
@@ -912,6 +914,7 @@
       "scheduleLocationTitle": "Planning & serviceadres",
       "scheduleLocationNote": "Waarden die bij de boeking of offerte zijn vastgelegd, indien beschikbaar.",
       "rfqTitle": "Aanvraag (RFQ) wizardgegevens",
+      "wizardTitle": "Gegevens uit de boekingswizard",
       "rfqDescription": "Elke opgeslagen vraag en elk antwoord, inclusief bestanden en onbeantwoorde vragen.",
       "requestDescription": "Aanvraagomschrijving",
       "additionalNotes": "Aanvullende opmerkingen",

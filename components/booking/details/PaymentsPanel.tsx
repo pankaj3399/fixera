@@ -10,6 +10,7 @@ import {
   ownRecordedCurrency,
   recordedNumber,
   recordedScheduleTimeZone,
+  transferAmountFromMinorUnits,
 } from "@/lib/bookingDetails"
 import type {
   BookingDetailsDto,
@@ -295,10 +296,13 @@ function transferForRecord(
   // only for fields the row did not record.
   const base = record.kind !== "milestone" ? bookingPayment : null
   if (!recorded && !base) return null
+  // `record.transfer.amount` is already in major units (backend DTO); the raw
+  // subdocument keeps the Stripe minor-unit amount and must be converted.
+  const baseCurrency = base?.transferCurrency ?? base?.currency ?? null
   const transfer = {
     status: recorded?.status ?? base?.transferStatus ?? null,
     currency: recorded?.currency ?? base?.transferCurrency ?? null,
-    amount: recorded?.amount ?? base?.transferAmount ?? null,
+    amount: recorded?.amount ?? transferAmountFromMinorUnits(base?.transferAmount, baseCurrency),
     attemptedAt: recorded?.attemptedAt ?? base?.transferAttemptedAt ?? null,
   }
   return transfer.status || transfer.amount != null || transfer.attemptedAt ? transfer : null

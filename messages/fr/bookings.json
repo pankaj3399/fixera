@@ -716,7 +716,9 @@
       "quotation": "Devis",
       "payments": "Paiements",
       "activity": "Activité",
-      "bookingRfq": "Demande de devis"
+      "bookingRfq": "Demande de devis",
+      "unavailableNoQuotation": "Cette réservation n'a pas de devis.",
+      "unavailableNotBooked": "Disponible dès que le devis a été réservé et payé."
     },
     "fields": {
       "unknown": "Inconnu",
@@ -912,6 +914,7 @@
       "scheduleLocationTitle": "Planning et adresse de service",
       "scheduleLocationNote": "Valeurs enregistrées avec la réservation ou le devis lorsqu'elles sont disponibles.",
       "rfqTitle": "Données de l'assistant de demande (RFQ)",
+      "wizardTitle": "Données de l'assistant de réservation",
       "rfqDescription": "Chaque question et réponse enregistrée, y compris les fichiers et les questions sans réponse.",
       "requestDescription": "Description de la demande",
       "additionalNotes": "Notes supplémentaires",

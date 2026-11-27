@@ -1,13 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useVisiblePathname } from "@/hooks/useVisiblePathname"
 import { useTranslations } from "next-intl"
 import { ClipboardList, FileText, Gauge, History, Wallet } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
-import { buildDetailHref, detailTabFromHash, pushQuotationVersionUrl, resolveTabFromUrl, resolveDetailTab, type DetailTab } from "@/lib/bookingDetails"
+import { buildDetailHref, detailTabFromHash, pushQuotationVersionUrl, resolveTabFromUrl, resolveDetailTab, unavailableDetailTabs, type DetailTab } from "@/lib/bookingDetails"
 import type { BookingDetailsDto, DetailViewerRole, RawBookingRecord } from "@/types/bookingDetails"
 import { OverviewPanel } from "./OverviewPanel"
 import { BookingPanel } from "./BookingDataPanel"
@@ -48,6 +48,11 @@ export function BookingDetailsTabs({
 
   const initialTab = resolveDetailTab(searchParams?.get("tab") || defaultTab || "overview")
   const [activeTab, setActiveTab] = useState<DetailTab>(initialTab)
+  // BPQ-1/BPQ-2: Quotation is greyed out when the booking had no quotation;
+  // Booking and Payments while a quotation has not been booked (paid). A URL
+  // that targets an unavailable tab shows Overview instead.
+  const unavailableTabs = useMemo(() => unavailableDetailTabs(booking, details), [booking, details])
+  const visibleTab: DetailTab = unavailableTabs[activeTab] ? "overview" : activeTab
 
   // Resolve from the complete URL, not only a present hash. Removing the hash
   // with Back (or a hashchange to no hash) must restore `?tab=`/the default,
@@ -85,6 +90,7 @@ export function BookingDetailsTabs({
 
   const selectTab = useCallback(
     (tab: DetailTab, hashOverride?: string | null) => {
+      if (unavailableTabs[tab]) return
       setActiveTab(tab)
       if (typeof window === "undefined") return
       const currentHash = window.location.hash
@@ -108,7 +114,7 @@ export function BookingDetailsTabs({
       }
       if (tab === "overview") window.scrollTo({ top: 0, behavior: "smooth" })
     },
-    [pathname, router]
+    [pathname, router, unavailableTabs]
   )
 
   // Task 17: RFQ surfaces say "Quotation request", not "Booking".
@@ -120,10 +126,14 @@ export function BookingDetailsTabs({
     payments: dt("tabs.payments", "Payments"),
     activity: dt("tabs.activity", "Activity"),
   }
+  const unavailableHints = {
+    no_quotation: dt("tabs.unavailableNoQuotation", "This booking has no quotation."),
+    not_booked: dt("tabs.unavailableNotBooked", "Available once the quotation has been booked and paid."),
+  }
 
   return (
     <Tabs
-      value={activeTab}
+      value={visibleTab}
       onValueChange={(value) => selectTab(resolveDetailTab(value))}
       className={cn("space-y-4", className)}
     >
@@ -142,15 +152,29 @@ export function BookingDetailsTabs({
         >
           {(Object.keys(labels) as DetailTab[]).map((tab) => {
             const Icon = TAB_ICONS[tab]
-            return (
+            const unavailableReason = unavailableTabs[tab]
+            const hint = unavailableReason ? unavailableHints[unavailableReason] : undefined
+            const trigger = (
               <TabsTrigger
                 key={tab}
                 value={tab}
+                disabled={Boolean(unavailableReason)}
+                aria-description={hint}
+                data-unavailable={unavailableReason || undefined}
                 className="min-h-11 flex-none gap-1.5 rounded-md px-3 py-2 text-xs sm:text-sm"
               >
                 <Icon className="h-4 w-4" aria-hidden="true" />
                 {labels[tab]}
               </TabsTrigger>
+            )
+            // A disabled trigger ignores pointer events, so the wrapper carries
+            // the explanation tooltip.
+            return hint ? (
+              <span key={tab} title={hint} className="flex flex-none cursor-not-allowed">
+                {trigger}
+              </span>
+            ) : (
+              trigger
             )
           })}
         </TabsList>
@@ -163,6 +187,7 @@ export function BookingDetailsTabs({
           viewerRole={viewerRole}
           pathname={pathname}
           search={search}
+          unavailableTabs={unavailableTabs}
           onSelectTab={(tab, hash) => selectTab(tab, hash)}
         />
       </TabsContent>

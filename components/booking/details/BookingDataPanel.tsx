@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 import {
+  bookingHadQuotation,
   durationLabel,
   formatCalendarDate,
   formatInstant,
@@ -196,6 +197,14 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
     ? dt("booking.liveProjectData", "current project (live)")
     : null
   const rfqAnswers = wizard?.rfq?.answers || booking.rfqData?.answers || []
+  // BPQ-1: when the booking had a quotation, the Quotation tab is the one
+  // place that shows the request (RFQ) wizard data. Without a quotation the
+  // same record is the booking wizard's own data and stays here.
+  const showWizardRequestData = !bookingHadQuotation(booking, details)
+  const hasCustomerBlocks = Boolean(
+    booking.customerBlocks
+    && ((booking.customerBlocks.dates?.length || 0) > 0 || (booking.customerBlocks.windows?.length || 0) > 0)
+  )
   const postBookingQuestions = postBooking?.questions || snapshot?.questions?.postBooking || []
   const effectivePostBookingQuestions =
     postBookingQuestions.length > 0 ? postBookingQuestions : liveProjectQuestions.post
@@ -669,8 +678,9 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
         )
       })()}
 
+      {showWizardRequestData ? (
       <DetailCard
-        title={dt("booking.rfqTitle", "Request (RFQ) wizard data")}
+        title={dt("booking.wizardTitle", "Booking wizard data")}
         description={dt("booking.rfqDescription", "Every stored question and answer, including files and unanswered questions.")}
       >
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -759,10 +769,13 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
             )}
           </div>
         </div>
-        {booking.customerBlocks && ((booking.customerBlocks.dates?.length || 0) > 0 || (booking.customerBlocks.windows?.length || 0) > 0) ? (
+      </DetailCard>
+      ) : null}
+
+      {hasCustomerBlocks && booking.customerBlocks ? (
+        <DetailCard title={dt("booking.customerBlocks", "Customer availability blocks")}>
           <div>
-            <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500">{dt("booking.customerBlocks", "Customer availability blocks")}</p>
-            <ul className="mt-1 space-y-1 text-xs text-gray-700">
+            <ul className="space-y-1 text-xs text-gray-700">
               {(booking.customerBlocks.dates || []).map((block, index) => (
                 <li key={`date-${block.date}-${index}`}>
                   {formatCalendarDate(block.date, intl) || block.date}
@@ -777,8 +790,8 @@ export function BookingPanel({ booking, details }: BookingPanelProps) {
               ))}
             </ul>
           </div>
-        ) : null}
-      </DetailCard>
+        </DetailCard>
+      ) : null}
 
       <DetailCard
         title={dt("booking.vatTitle", "VAT questionnaire & decision")}
