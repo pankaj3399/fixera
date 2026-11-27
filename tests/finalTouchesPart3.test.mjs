@@ -89,6 +89,7 @@ test('search page wires relevance sort, preserves backend result order, and conn
         '@/components/search/ProfessionalCard': { __esModule: true, default: ProfessionalCard },
         '@/components/search/ProjectCard': { __esModule: true, default: ProjectCard },
         '@/components/search/SearchFilters': { __esModule: true, default: () => null },
+        '@/components/search/SearchSortSelect': { __esModule: true, default: () => null },
         '@/components/i18n/ContentTranslationsProvider': { ContentTranslationsProvider: ({ children }) => children },
         '@/hooks/useFilterOptions': { useFilterOptions: () => ({ filterOptions: {} }) },
         '@/hooks/useCustomerPricing': { useCustomerPricing: () => ({ customerPrice: value => value, originalPrice: value => value }) },

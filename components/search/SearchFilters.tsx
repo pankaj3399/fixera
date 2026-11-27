@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Filter, X, ChevronDown, ChevronUp, Star, Search } from 'lucide-react';
@@ -26,7 +25,7 @@ import { useCatalogNames } from '@/lib/catalog/catalogNames';
 
 export type SortOption = 'relevant' | 'price_low' | 'price_high' | 'newest' | 'availability' | 'popularity';
 
-const SORT_OPTION_KEYS: Record<SortOption, 'filters.sort.relevant' | 'filters.sort.priceLow' | 'filters.sort.priceHigh' | 'filters.sort.newest' | 'filters.sort.availability' | 'filters.sort.popularity'> = {
+export const SORT_OPTION_KEYS: Record<SortOption, 'filters.sort.relevant' | 'filters.sort.priceLow' | 'filters.sort.priceHigh' | 'filters.sort.newest' | 'filters.sort.availability' | 'filters.sort.popularity'> = {
   relevant: 'filters.sort.relevant',
   price_low: 'filters.sort.priceLow',
   price_high: 'filters.sort.priceHigh',
@@ -382,28 +381,6 @@ const SearchFilters = ({
             {t('filters.keywordSearch')}
           </Button>
         </div>
-      </div>
-
-      {/* Sort By */}
-      <div className="space-y-2 border-b pb-4 order-last">
-        <Label htmlFor="sortBy" className="text-sm font-semibold text-gray-900">
-          {t('filters.sortBy')}
-        </Label>
-        <Select value={filters.sortBy} onValueChange={(val) => onFilterChange('sortBy', val as SortOption)}>
-          <SelectTrigger id="sortBy" className="w-full">
-            <SelectValue placeholder={t('filters.sortPlaceholder')} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="relevant">{t(SORT_OPTION_KEYS.relevant)}</SelectItem>
-            <SelectItem value="price_low">{t(SORT_OPTION_KEYS.price_low)}</SelectItem>
-            <SelectItem value="price_high">{t(SORT_OPTION_KEYS.price_high)}</SelectItem>
-            <SelectItem value="newest">{t(SORT_OPTION_KEYS.newest)}</SelectItem>
-            {searchType === 'projects' && (
-              <SelectItem value="availability">{t(SORT_OPTION_KEYS.availability)}</SelectItem>
-            )}
-            <SelectItem value="popularity">{t(SORT_OPTION_KEYS.popularity)}</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Geographic Area Filter */}
