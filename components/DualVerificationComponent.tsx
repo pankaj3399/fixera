@@ -115,6 +115,12 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
     };
   }, []);
 
+  // The step replaces a long signup form: start at the top so the back
+  // button and both code fields are in view (FT2-6C).
+  useEffect(() => {
+    if (typeof window !== "undefined") window.scrollTo({ top: 0 });
+  }, []);
+
   // Check if both verifications are complete
   useEffect(() => {
     if (verificationState.emailVerified && verificationState.phoneVerified) {
