@@ -95,3 +95,21 @@ export function formatPrice(amount: number, options: PriceOptions): string {
   const converted = convertFromEur(amount, currency, rates);
   return formatAmount(converted, currency, locale);
 }
+
+/**
+ * CUR: a pre-payment amount stored on a record (quote, checkout) in its own
+ * currency. EUR amounts are shown in the visitor's display currency like the
+ * search and project pages; the charge itself stays EUR, so callers show the
+ * EUR amount next to it where the customer is about to pay. Other record
+ * currencies are formatted as stored (no rate maps them to the display one).
+ */
+export function formatDisplayMoney(
+  amount: number,
+  recordCurrency: string | null | undefined,
+  options: PriceOptions,
+): string {
+  const raw = (recordCurrency || BASE_CURRENCY).trim();
+  const code = LEGACY_SYMBOLS[raw] ?? raw.toUpperCase();
+  if (code === BASE_CURRENCY) return formatPrice(amount, options);
+  return formatMoney(amount, code, options.locale);
+}

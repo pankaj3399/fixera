@@ -59,7 +59,7 @@ test('quotation milestone preview renders immutable totals before live pricing l
   const code = transformSync(`function preview() { return <div>${jsx}</div> }`, {
     jsc: { parser: { syntax: 'typescript', tsx: true }, transform: { react: { runtime: 'automatic' } } }, module: { type: 'commonjs' },
   }).code
-  const render = (ready, amounts = [133.1]) => new Function('require', 'currentVersion', 'quotePricingReady', 'customerPricingReady', 'currentVersionMilestoneGrossAmounts', 'formatMoney', `const exports = {}; ${code}; return preview();`)(
+  const render = (ready, amounts = [133.1]) => new Function('require', 'currentVersion', 'quotePricingReady', 'customerPricingReady', 'currentVersionMilestoneGrossAmounts', 'formatQuoteMoney', `const exports = {}; ${code}; return preview();`)(
     require, { milestones: [{ title: 'First' }], currency: 'EUR' }, ready, false, amounts, amount => `EUR ${amount}`,
   )
   const { renderToStaticMarkup } = require('react-dom/server')

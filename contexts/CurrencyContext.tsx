@@ -20,6 +20,7 @@ import {
 } from "@/lib/currency/currencies";
 import {
   convertFromEur as convertFromEurWithRates,
+  formatDisplayMoney as formatDisplayMoneyWithRates,
   formatMoney as formatMoneyInLocale,
   formatPrice as formatPriceWithRates,
   type PriceOptions,
@@ -60,6 +61,12 @@ export interface CurrencyContextValue {
    * payments). Defaults to EUR.
    */
   formatMoney: (amount: number, currencyCode?: string | null) => string;
+  /**
+   * CUR: a not-yet-paid amount of a record (wizard, quote, checkout). EUR is
+   * converted to the display currency like `formatPrice`; the charge stays
+   * EUR, so show the EUR amount (`formatMoney`) where the customer pays.
+   */
+  formatDisplayMoney: (amount: number, currencyCode?: string | null) => string;
 }
 
 const CurrencyContext = createContext<CurrencyContextValue | null>(null);
@@ -190,6 +197,18 @@ export function CurrencyProvider({
     [locale]
   );
 
+  const formatDisplayMoney = useCallback(
+    (amount: number, currencyCode?: string | null) => {
+      const formatted = formatDisplayMoneyWithRates(amount, currencyCode, {
+        currency,
+        rates,
+        locale: INTL_FORMAT_LOCALES[locale] ?? locale,
+      });
+      return currencyReady ? formatted : pricePlaceholder(formatted);
+    },
+    [currency, currencyReady, rates, locale]
+  );
+
   const convert = useCallback(
     (amount: number) => convertFromEurWithRates(amount, currency, rates),
     [currency, rates]
@@ -203,8 +222,8 @@ export function CurrencyProvider({
   );
 
   const value = useMemo<CurrencyContextValue>(
-    () => ({ currency, currencyReady, setCurrency, rates, convertFromEur: convert, convertToEur, formatPrice, formatMoney }),
-    [currency, currencyReady, setCurrency, rates, convert, convertToEur, formatPrice, formatMoney]
+    () => ({ currency, currencyReady, setCurrency, rates, convertFromEur: convert, convertToEur, formatPrice, formatMoney, formatDisplayMoney }),
+    [currency, currencyReady, setCurrency, rates, convert, convertToEur, formatPrice, formatMoney, formatDisplayMoney]
   );
 
   return <CurrencyContext.Provider value={value}>{children}</CurrencyContext.Provider>;

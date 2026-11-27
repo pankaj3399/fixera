@@ -342,7 +342,8 @@
     },
     "currentPreviewNote": "Aperçu actuel du paiement avec les tarifs de paiement actuels. Le devis enregistré se trouve dans l'onglet Devis.",
     "viewingPinnedVersion": "Version épinglée v{version} affichée. Accepter et payer utilise toujours la version valide actuelle.",
-    "backToCurrentVersion": "Retour à la version actuelle"
+    "backToCurrentVersion": "Retour à la version actuelle",
+    "chargedInNote": "Converti à titre indicatif. Débité en {currency} : {amount}."
   },
   "loyalty": {
     "member": "Membre {level}",
