@@ -15,25 +15,28 @@ import {
   otpResendDeadline,
   otpResendStateAt,
 } from "@/lib/auth/signupOtpCooldown"
-import SignupContactEditor from "@/components/auth/SignupContactEditor"
-import { resendDeadlineAfterContactSave, type SignupContactUpdate } from "@/lib/auth/signupContact"
+import type { SignupResendDeadlines } from "@/lib/auth/signupContact"
 
 interface DualVerificationProps {
   email: string;
   phone: string;
   onVerificationSuccess: () => void;
-  /** Leaves the verification step (used when no contact editor is offered). */
+  /**
+   * "Back: change your details" (FT2-6C): the parent shows the signup form
+   * again, prefilled from the account, in edit mode.
+   */
   onBack?: () => void;
   /**
-   * When set, "Back" opens the email/phone editor (FT2-6C): the account
-   * already exists, so the parent only takes over the corrected values.
+   * Per-channel resend cooldown deadlines (epoch ms). The parent owns them so
+   * they survive a trip back to the form: set from signup's send, kept for an
+   * unchanged channel and restarted for a changed one. Omitted or null:
+   * resend is available (no send time is ever assumed from a mount).
    */
-  onContactChange?: (contact: { email: string; phone: string }) => void;
-  /**
-   * Epoch ms at which signup sent both codes. Starts the 2-minute resend
-   * cooldown on arrival; omitted when arriving without a fresh send.
-   */
-  codesSentAt?: number | null;
+  resendDeadlines?: SignupResendDeadlines | null;
+  /** Reports a deadline change after a successful resend. */
+  onResendDeadlinesChange?: (deadlines: SignupResendDeadlines) => void;
+  /** Channels already verified, e.g. when coming back from the form. */
+  initialVerified?: { email: boolean; phone: boolean };
 }
 
 interface VerificationState {
@@ -56,35 +59,39 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
   phone,
   onVerificationSuccess,
   onBack,
-  onContactChange,
-  codesSentAt,
+  resendDeadlines,
+  onResendDeadlinesChange,
+  initialVerified,
 }) => {
   const t = useTranslations("auth")
   const getErrorText = useErrorMessage()
  
-  const initialDeadline = typeof codesSentAt === "number" ? otpResendDeadline(codesSentAt) : null;
-  const initialResend = otpResendStateAt(initialDeadline);
+  const initialEmailResend = otpResendStateAt(resendDeadlines?.email ?? null);
+  const initialPhoneResend = otpResendStateAt(resendDeadlines?.phone ?? null);
   const [verificationState, setVerificationState] = useState<VerificationState>({
-    emailVerified: false,
-    phoneVerified: false,
+    emailVerified: Boolean(initialVerified?.email),
+    phoneVerified: Boolean(initialVerified?.phone),
     emailOTP: "",
     phoneOTP: "",
     emailLoading: false,
     phoneLoading: false,
     emailResendLoading: false,
     phoneResendLoading: false,
-    emailResendDisabled: initialResend.disabled,
-    phoneResendDisabled: initialResend.disabled,
-    emailResendTime: initialResend.remainingSeconds,
-    phoneResendTime: initialResend.remainingSeconds
+    emailResendDisabled: initialEmailResend.disabled,
+    phoneResendDisabled: initialPhoneResend.disabled,
+    emailResendTime: initialEmailResend.remainingSeconds,
+    phoneResendTime: initialPhoneResend.remainingSeconds
   });
 
   // Countdown timers for resend buttons. Each channel keeps a wall-clock
   // deadline; ticks only recompute the remaining seconds from it, so a
   // throttled interval in a hidden tab cannot stretch the cooldown.
-  const emailResendDeadlineRef = useRef<number | null>(initialDeadline);
-  const phoneResendDeadlineRef = useRef<number | null>(initialDeadline);
-  const [editingContact, setEditingContact] = useState(false);
+  const emailResendDeadlineRef = useRef<number | null>(resendDeadlines?.email ?? null);
+  const phoneResendDeadlineRef = useRef<number | null>(resendDeadlines?.phone ?? null);
+  const reportDeadlines = () => onResendDeadlinesChange?.({
+    email: emailResendDeadlineRef.current,
+    phone: phoneResendDeadlineRef.current,
+  });
   useEffect(() => {
     // Returning to onboarding does not imply another OTP was sent.
     // Successful resend handlers establish their own channel's deadline.
@@ -148,6 +155,7 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
       if (data.success) {
         toast.success(t("dualVerification.emailCodeSentToast"));
         emailResendDeadlineRef.current = otpResendDeadline();
+        reportDeadlines();
         setVerificationState(prev => ({ 
           ...prev, 
           emailResendDisabled: true, 
@@ -180,6 +188,7 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
       if (data.success) {
         toast.success(t("dualVerification.phoneCodeSentToast"));
         phoneResendDeadlineRef.current = otpResendDeadline();
+        reportDeadlines();
         setVerificationState(prev => ({ 
           ...prev, 
           phoneResendDisabled: true, 
@@ -272,28 +281,6 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleContactSaved = (update: SignupContactUpdate) => {
-    emailResendDeadlineRef.current = resendDeadlineAfterContactSave(
-      update.emailChanged, update.emailOtpSent, emailResendDeadlineRef.current, otpResendDeadline,
-    );
-    phoneResendDeadlineRef.current = resendDeadlineAfterContactSave(
-      update.phoneChanged, update.phoneOtpSent, phoneResendDeadlineRef.current, otpResendDeadline,
-    );
-    const emailResend = otpResendStateAt(emailResendDeadlineRef.current);
-    const phoneResend = otpResendStateAt(phoneResendDeadlineRef.current);
-    setVerificationState(prev => ({
-      ...prev,
-      emailResendTime: emailResend.remainingSeconds,
-      emailResendDisabled: emailResend.disabled,
-      phoneResendTime: phoneResend.remainingSeconds,
-      phoneResendDisabled: phoneResend.disabled,
-      ...(update.emailChanged ? { emailOTP: "", emailVerified: false } : {}),
-      ...(update.phoneChanged ? { phoneOTP: "", phoneVerified: false } : {}),
-    }));
-    onContactChange?.({ email: update.email, phone: update.phone });
-    setEditingContact(false);
-  };
-
   const getProgressPercentage = () => {
     let progress = 0;
     if (verificationState.emailVerified) progress += 50;
@@ -306,17 +293,17 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
       <div className="w-full max-w-4xl">
         {/* Header */}
         <div className="text-center mb-8">
-          {(onContactChange || onBack) && !editingContact && (
+          {onBack && !(verificationState.emailVerified && verificationState.phoneVerified) && (
             <div className="mb-4 flex justify-start">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => (onContactChange ? setEditingContact(true) : onBack?.())}
+                onClick={onBack}
                 className="flex items-center gap-2 text-gray-700"
               >
                 <ArrowLeft className="h-4 w-4" />
-                {onContactChange ? t("dualVerification.backToChangeContact") : t("dualVerification.back")}
+                {t("dualVerification.backToEditDetails")}
               </Button>
             </div>
           )}
@@ -333,17 +320,6 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
           </p>
         </div>
 
-        {editingContact ? (
-          <SignupContactEditor
-            email={email}
-            phone={phone}
-            emailVerified={verificationState.emailVerified}
-            phoneVerified={verificationState.phoneVerified}
-            onCancel={() => setEditingContact(false)}
-            onSaved={handleContactSaved}
-          />
-        ) : (
-        <>
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
@@ -554,9 +530,6 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
               <p className="text-green-700">{t("dualVerification.completeBody")}</p>
             </div>
           </div>
-        )}
-
-        </>
         )}
 
         {/* Help Text */}

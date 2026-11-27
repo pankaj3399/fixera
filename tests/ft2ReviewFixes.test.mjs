@@ -131,7 +131,6 @@ test('professional verification mount permits resend until an actual channel sen
     '@/lib/i18n/useErrorMessage': { useErrorMessage: () => (_error, fallback) => fallback },
     '@/lib/auth/signupOtpCooldown': cooldown,
     '@/lib/auth/signupContact': signupContact,
-    '@/components/auth/SignupContactEditor': { __esModule: true, default: 'SignupContactEditor' },
   })
   try {
     ui.render({ email: 'test@example.test', phone: '+320000000', onVerificationSuccess() {}, onBack() {} })
