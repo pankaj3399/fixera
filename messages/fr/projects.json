@@ -117,6 +117,7 @@
     "holiday": "Congés",
     "notFound": "Projet introuvable",
     "loadFailed": "Échec du chargement du projet",
+    "resumePackageUnavailable": "Le forfait que vous avez choisi n'est plus proposé. Veuillez choisir à nouveau un forfait à réserver.",
     "signInToBook": "Connectez-vous pour réserver ce projet",
     "customersOnlyBook": "Seuls les clients peuvent réserver des projets",
     "signInToContact": "Connectez-vous pour contacter ce professionnel",

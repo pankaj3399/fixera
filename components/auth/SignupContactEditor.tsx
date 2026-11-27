@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { PhoneCountryCodeSelect } from '@/components/PhoneCountryCodeSelect'
 import { useErrorMessage } from '@/lib/i18n/useErrorMessage'
-import { splitSignupPhone, updateSignupContact, type SignupContactUpdate } from '@/lib/auth/signupContact'
+import { contactSaveOutcome, splitSignupPhone, updateSignupContact, type SignupContactUpdate } from '@/lib/auth/signupContact'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -56,11 +56,16 @@ export default function SignupContactEditor({ email, phone, emailVerified, phone
         ...(emailVerified ? {} : { email: trimmedEmail }),
         ...(phoneVerified ? {} : { phone: fullPhone }),
       })
-      toast.success(
-        update.emailChanged || update.phoneChanged
-          ? t('dualVerification.changeContact.savedToast')
-          : t('dualVerification.changeContact.unchangedToast'),
-      )
+      const outcome = contactSaveOutcome(update)
+      if (outcome === 'notSent') {
+        toast.warning(t('dualVerification.changeContact.savedNotSentToast'))
+      } else {
+        toast.success(
+          outcome === 'sent'
+            ? t('dualVerification.changeContact.savedToast')
+            : t('dualVerification.changeContact.unchangedToast'),
+        )
+      }
       onSaved(update)
     } catch (error) {
       toast.error(getErrorText(error, t('dualVerification.changeContact.failed')))

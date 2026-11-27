@@ -45,7 +45,15 @@ import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { useAuth } from '@/contexts/AuthContext';
-import { clearCheckoutDraft, saveCheckoutDraft, type CheckoutDraft } from '@/lib/booking/checkoutDraft';
+import {
+  clearCheckoutDraft,
+  pickHourlySlot,
+  saveCheckoutDraft,
+  vatInputsKey,
+  type CheckoutDraft,
+  type RestoredHourlyTime,
+} from '@/lib/booking/checkoutDraft';
+import { vatInclusiveTotal } from '@/lib/booking/vatPreviewTotal';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 import { getViewerTimezone, normalizeTimezone } from '@/lib/timezoneDisplay';
@@ -435,6 +443,21 @@ export default function ProjectBookingForm({
   const [manualAddress, setManualAddress] = useState(resumeDraft?.manualAddress ?? '');
   const [isServiceAddressValid, setIsServiceAddressValid] = useState(resumeDraft?.isServiceAddressValid ?? false);
   const [servicePlace, setServicePlace] = useState<PlaceData | undefined>(resumeDraft?.servicePlace as PlaceData | undefined);
+  // FT2-4B: the hourly start time of a restored draft. It survives the date
+  // and slot initialization and is dropped once the customer picks another
+  // date, time or package, or the date no longer offers it.
+  const restoredTimeRef = useRef<RestoredHourlyTime | null>(
+    resumeDraft?.selectedDate && resumeDraft.selectedTime
+      ? { date: resumeDraft.selectedDate, time: resumeDraft.selectedTime }
+      : null
+  );
+  // The VAT inputs the current standard-VAT choice was made for. A restored
+  // choice keeps the key it was saved with, so an unchanged preview keeps it.
+  const standardVatInputsKeyRef = useRef<string | null>(resumeDraft?.vatInputsKey ?? null);
+  const vatPreviewCountry =
+    countryFromPlace(servicePlace) ||
+    (useProfileAddress ? user?.location?.country : undefined);
+  const currentVatInputsKey = vatInputsKey(Object.values(vatAnswers), vatPreviewCountry);
   const selectedPackage =
     selectedPackageIndex !== null
       ? project.subprojects[selectedPackageIndex]
@@ -537,7 +560,12 @@ export default function ProjectBookingForm({
       return;
     }
     setVatPreview(null);
-    setProceedAtStandardVat(false);
+    // Keep the standard-VAT choice while its inputs are unchanged (going
+    // back and forth, or a restored draft); drop it once they change.
+    if (standardVatInputsKeyRef.current !== currentVatInputsKey) {
+      setProceedAtStandardVat(false);
+    }
+    standardVatInputsKeyRef.current = currentVatInputsKey;
     let cancelled = false;
     (async () => {
       try {
@@ -551,9 +579,7 @@ export default function ProjectBookingForm({
               projectId: project._id,
               serviceConfigurationId: project.serviceConfigurationId,
               vatAnswers: Object.values(vatAnswers),
-              serviceCountry:
-                countryFromPlace(servicePlace) ||
-                (useProfileAddress ? user?.location?.country : undefined),
+              serviceCountry: vatPreviewCountry,
             }),
           }
         );
@@ -568,6 +594,8 @@ export default function ProjectBookingForm({
     return () => {
       cancelled = true;
     };
+    // currentVatInputsKey and vatPreviewCountry derive from the listed inputs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep, project._id, project.serviceConfigurationId, vatAnswers, servicePlace, useProfileAddress, user?.location?.country]);
 
   // Check if unit pricing - either explicit type or inferred from priceModel for old projects
@@ -685,7 +713,12 @@ export default function ProjectBookingForm({
     );
   }, []);
 
+  // The package the draft was restored with (compared by value, so a
+  // re-run of the mount effect in development keeps the restored time).
+  const restoredPackageIndexRef = useRef(selectedPackageIndex);
   useEffect(() => {
+    // Another package is a new choice: the restored time is not for it.
+    if (selectedPackageIndex !== restoredPackageIndexRef.current) restoredTimeRef.current = null;
     const packageIndex = typeof selectedPackageIndex === 'number'
       ? selectedPackageIndex
       : undefined;
@@ -859,12 +892,9 @@ export default function ProjectBookingForm({
       return;
     }
     const slots = generateTimeSlotsForDate(dateObj);
-    if (slots.length === 0) {
-      setSelectedTime('');
-      return;
-    }
-    if (!selectedTime || !slots.includes(selectedTime)) {
-      setSelectedTime(slots[0]);
+    const nextTime = pickHourlySlot(slots, selectedTime, selectedDate, restoredTimeRef.current);
+    if (nextTime !== selectedTime) {
+      setSelectedTime(nextTime);
     }
   }, [
     selectedDate,
@@ -931,10 +961,15 @@ export default function ProjectBookingForm({
 
   useEffect(() => {
     if (!serverSlotsForSelectedDate) return;
+    // The server's slots are authoritative: a restored time it no longer offers is dropped.
+    const restored = restoredTimeRef.current;
+    if (restored && restored.date === selectedDate && !serverSlotsForSelectedDate.includes(restored.time)) {
+      restoredTimeRef.current = null;
+    }
     if (!selectedTime) return;
     if (serverSlotsForSelectedDate.includes(selectedTime)) return;
     setSelectedTime(serverSlotsForSelectedDate[0] || '');
-  }, [serverSlotsForSelectedDate, selectedTime]);
+  }, [serverSlotsForSelectedDate, selectedTime, selectedDate]);
 
   const fetchScheduleWindow = useCallback(async (startDate: string, startTime?: string) => {
     const requestId = ++scheduleWindowRequestRef.current;
@@ -2641,8 +2676,12 @@ export default function ProjectBookingForm({
             // the payment page's back button returns to this wizard intact.
             saveCheckoutDraft(
               project._id,
+              user?._id,
               {
                 selectedPackageIndex,
+                selectedPackageId: selectedPackage?._id,
+                selectedPackageName: selectedPackage?.name,
+                vatInputsKey: currentVatInputsKey,
                 estimatedUsage,
                 selectedDate,
                 selectedTime,
@@ -3233,9 +3272,16 @@ export default function ProjectBookingForm({
   }, [hasProfileAddress, useProfileAddress]);
 
   useEffect(() => {
-    if (projectMode === 'hours') {
-      setSelectedTime('');
+    if (projectMode !== 'hours') return;
+    const restored = restoredTimeRef.current;
+    // Draft initialization: the mount pass (no date yet) and the restored
+    // date keep the restored time. Any other date is the customer's choice.
+    if (restored && (!selectedDate || selectedDate === restored.date)) {
+      if (selectedDate) setSelectedTime(restored.time);
+      return;
     }
+    restoredTimeRef.current = null;
+    setSelectedTime('');
   }, [projectMode, selectedDate]);
 
   return (
@@ -3742,9 +3788,11 @@ export default function ProjectBookingForm({
                                 <button
                                   key={timeSlot}
                                   type='button'
-                                  onClick={() =>
-                                    !isPast && setSelectedTime(timeSlot)
-                                  }
+                                  onClick={() => {
+                                    if (isPast) return;
+                                    restoredTimeRef.current = null;
+                                    setSelectedTime(timeSlot);
+                                  }}
                                   disabled={isPast}
                                   className={`
                                     px-2 py-2 rounded-lg border text-sm font-medium transition-all flex flex-col items-center
@@ -3791,6 +3839,7 @@ export default function ProjectBookingForm({
                                       )
                                       : '';
                                     if (startInstant && !isDateBlocked(startInstant)) {
+                                      restoredTimeRef.current = null;
                                       setHasUserSelectedDate(true);
                                       setSelectedDate(startInstant);
                                       if (startTime) {
@@ -4921,9 +4970,7 @@ export default function ProjectBookingForm({
                         <p className='text-xs text-gray-600' data-testid='wizard-charge-note'>
                           {t('chargeNote', {
                             amount: formatMoney(
-                              vatPreview && !vatPreview.reverseCharge && vatPreview.action !== 'rfq'
-                                ? Math.round(finalDisplayTotal * (100 + vatPreview.appliedRate)) / 100
-                                : finalDisplayTotal,
+                              vatInclusiveTotal(finalDisplayTotal, vatPreview, proceedAtStandardVat),
                               'EUR'
                             ),
                           })}

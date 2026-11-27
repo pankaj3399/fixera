@@ -463,18 +463,20 @@ export function OverviewPanel({
               {formatCalendarDate(validUntil, intl) || validUntil}
             </DetailField>
           </dl>
-          <div className="flex flex-wrap gap-2 pt-1">
-            <a
-              href={quoteAnchors.version}
-              className="rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
-              onClick={(event) => {
-                event.preventDefault()
-                onSelectTab("quotation", quoteAnchors.version.includes("#") ? `#${quoteAnchors.version.split("#")[1]}` : "#quotation")
-              }}
-            >
-              {dt("overview.openQuotation", "Open quotation details")}
-            </a>
-          </div>
+          {tabAvailable("quotation") && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              <a
+                href={quoteAnchors.version}
+                className="rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+                onClick={(event) => {
+                  event.preventDefault()
+                  onSelectTab("quotation", quoteAnchors.version.includes("#") ? `#${quoteAnchors.version.split("#")[1]}` : "#quotation")
+                }}
+              >
+                {dt("overview.openQuotation", "Open quotation details")}
+              </a>
+            </div>
+          )}
         </DetailCard>
 
         <DetailCard

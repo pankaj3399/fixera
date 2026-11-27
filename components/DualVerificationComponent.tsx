@@ -16,7 +16,7 @@ import {
   otpResendStateAt,
 } from "@/lib/auth/signupOtpCooldown"
 import SignupContactEditor from "@/components/auth/SignupContactEditor"
-import type { SignupContactUpdate } from "@/lib/auth/signupContact"
+import { resendDeadlineAfterContactSave, type SignupContactUpdate } from "@/lib/auth/signupContact"
 
 interface DualVerificationProps {
   email: string;
@@ -273,10 +273,20 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
   };
 
   const handleContactSaved = (update: SignupContactUpdate) => {
-    if (update.emailChanged && update.emailOtpSent) emailResendDeadlineRef.current = otpResendDeadline();
-    if (update.phoneChanged && update.phoneOtpSent) phoneResendDeadlineRef.current = otpResendDeadline();
+    emailResendDeadlineRef.current = resendDeadlineAfterContactSave(
+      update.emailChanged, update.emailOtpSent, emailResendDeadlineRef.current, otpResendDeadline,
+    );
+    phoneResendDeadlineRef.current = resendDeadlineAfterContactSave(
+      update.phoneChanged, update.phoneOtpSent, phoneResendDeadlineRef.current, otpResendDeadline,
+    );
+    const emailResend = otpResendStateAt(emailResendDeadlineRef.current);
+    const phoneResend = otpResendStateAt(phoneResendDeadlineRef.current);
     setVerificationState(prev => ({
       ...prev,
+      emailResendTime: emailResend.remainingSeconds,
+      emailResendDisabled: emailResend.disabled,
+      phoneResendTime: phoneResend.remainingSeconds,
+      phoneResendDisabled: phoneResend.disabled,
       ...(update.emailChanged ? { emailOTP: "", emailVerified: false } : {}),
       ...(update.phoneChanged ? { phoneOTP: "", phoneVerified: false } : {}),
     }));

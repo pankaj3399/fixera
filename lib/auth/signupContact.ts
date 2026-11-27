@@ -34,3 +34,26 @@ export async function updateSignupContact(input: { email?: string; phone?: strin
   if (!response.ok || !body?.success) throw body
   return body.data as SignupContactUpdate
 }
+
+/**
+ * The resend deadline a channel keeps after a contact save: a fresh cooldown
+ * when a code went to the changed contact; none when the contact changed but
+ * no code was sent (the old cooldown belonged to the old contact, and the
+ * customer must be able to request a code now); the current one otherwise.
+ */
+export function resendDeadlineAfterContactSave(
+  changed: boolean,
+  sent: boolean,
+  current: number | null,
+  freshDeadline: () => number,
+): number | null {
+  if (!changed) return current
+  return sent ? freshDeadline() : null
+}
+
+/** Which confirmation a contact save gets: decided by the codes actually sent. */
+export function contactSaveOutcome(update: SignupContactUpdate): 'unchanged' | 'sent' | 'notSent' {
+  if (!update.emailChanged && !update.phoneChanged) return 'unchanged'
+  if ((update.emailChanged && !update.emailOtpSent) || (update.phoneChanged && !update.phoneOtpSent)) return 'notSent'
+  return 'sent'
+}

@@ -3912,15 +3912,20 @@ function BookingDetailContent() {
                           <p className="text-xs text-green-600 text-right">
                             {t("quote.youSaveBang", { amount: formatQuoteMoney(discountPreview.totalDiscount, booking.quote.currency || "€") })}
                           </p>
-                          {!quotePaid && displayCurrency !== 'EUR' && (
-                            <p className="text-xs text-gray-500 text-right">
-                              {t("quotation.chargedInNote", {
-                                amount: formatMoney(discountPreview.finalAmount, booking.quote.currency || "€"),
-                                currency: 'EUR',
-                              })}
-                            </p>
-                          )}
                         </div>
+                      )}
+
+                      {/* Converted amounts: the EUR charge, with or without a discount. */}
+                      {!quotePaid && displayCurrency !== 'EUR' && (discountPreview || booking.quote.amount != null) && (
+                        <p className="text-xs text-gray-500 text-right" data-testid="quote-charge-note">
+                          {t("quotation.chargedInNote", {
+                            amount: formatMoney(
+                              discountPreview ? discountPreview.finalAmount : (booking.quote.amount as number),
+                              booking.quote.currency || "€"
+                            ),
+                            currency: 'EUR',
+                          })}
+                        </p>
                       )}
 
                       {booking.quote.description && (

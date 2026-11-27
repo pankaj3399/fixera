@@ -233,6 +233,9 @@ export default function BookingPaymentPage() {
   const [checkoutInfo, setCheckoutInfo] = useState<{ id: string; projectId?: string } | null>(null);
   const [slotUnavailable, setSlotUnavailable] = useState(false);
   const [leavingCheckout, setLeavingCheckout] = useState(false);
+  // Its own message: the back action fails while the payment form is shown,
+  // where the page-level error is not rendered.
+  const [leaveCheckoutError, setLeaveCheckoutError] = useState('');
   const [clientSecret, setClientSecret] = useState<string>('');
   const [initializingPayment, setInitializingPayment] = useState(false);
   const [discountCodeInput, setDiscountCodeInput] = useState('');
@@ -1055,6 +1058,7 @@ export default function BookingPaymentPage() {
   const handleBackToWizard = async () => {
     if (!checkoutInfo || leavingCheckout) return;
     setLeavingCheckout(true);
+    setLeaveCheckoutError('');
     try {
       if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
       retryTimeoutRef.current = null;
@@ -1064,7 +1068,7 @@ export default function BookingPaymentPage() {
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
-        setError(getErrorText(data, t('paymentPage.errors.backToWizardFailed')));
+        setLeaveCheckoutError(getErrorText(data, t('paymentPage.errors.backToWizardFailed')));
         return;
       }
       if (data?.data?.redirectTo) {
@@ -1073,7 +1077,7 @@ export default function BookingPaymentPage() {
       }
       router.push(checkoutInfo.projectId ? wizardResumeHref(checkoutInfo.projectId) : '/');
     } catch (err) {
-      setError(getErrorText(err, t('paymentPage.errors.backToWizardFailed')));
+      setLeaveCheckoutError(getErrorText(err, t('paymentPage.errors.backToWizardFailed')));
     } finally {
       setLeavingCheckout(false);
     }
@@ -1756,6 +1760,15 @@ export default function BookingPaymentPage() {
           >
             <span aria-hidden="true">←</span> {t('paymentPage.backToDetails')}
           </Link>
+          )}
+          {checkoutInfo && leaveCheckoutError && (
+            <p
+              role="alert"
+              className="w-full rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600"
+              data-testid="payment-back-to-wizard-error"
+            >
+              {leaveCheckoutError}
+            </p>
           )}
           {!checkoutInfo && ['quote_accepted', 'payment_pending'].includes(booking?.status || '') &&
             !booking?.milestonePayments?.some(milestone => milestone.status === 'paid') && (

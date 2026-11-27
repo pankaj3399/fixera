@@ -55,7 +55,13 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 import type { PublicProjectDto as Project } from '@/types/project';
 import { normalizePublicProject } from '@/lib/publicProjectShape';
-import { loadCheckoutDraft, RESUME_BOOKING_PARAM, type CheckoutDraft } from '@/lib/booking/checkoutDraft';
+import {
+  clearCheckoutDraft,
+  findDraftPackageIndex,
+  loadCheckoutDraft,
+  RESUME_BOOKING_PARAM,
+  type CheckoutDraft,
+} from '@/lib/booking/checkoutDraft';
 import {
   getAdminTagStyle,
   formatAdminTagLabel,
@@ -488,18 +494,28 @@ export default function ProjectDetailView({ initialProject, serverNow }: Project
 
   // FT2-4B: reopen the booking wizard with the answers the customer had when
   // they went back from the payment page.
+  // A draft is restored only for the account that saved it, and only with the
+  // package it was saved for (found by id, never by its position in the list).
   useEffect(() => {
-    if (!project || typeof window === 'undefined') return;
+    if (!project || authLoading || typeof window === 'undefined') return;
     const url = new URL(window.location.href);
     if (url.searchParams.get(RESUME_BOOKING_PARAM) !== '1') return;
     url.searchParams.delete(RESUME_BOOKING_PARAM);
     window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
-    const draft = loadCheckoutDraft(project._id);
-    if (!draft || draft.selectedPackageIndex === null || draft.selectedPackageIndex >= project.subprojects.length) return;
+    const draft = loadCheckoutDraft(project._id, user?._id);
+    if (!draft) return;
+    const packageIndex = findDraftPackageIndex(project.subprojects, draft);
+    if (packageIndex === null) {
+      clearCheckoutDraft(project._id);
+      toast.error(t('page.resumePackageUnavailable'));
+      return;
+    }
     setResumeDraft(draft);
-    setSelectedSubprojectIndex(draft.selectedPackageIndex);
+    setSelectedSubprojectIndex(packageIndex);
     setShowBookingForm(true);
-  }, [project]);
+    // t is stable; the draft is read once auth has settled for this project.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project, authLoading, user?._id]);
 
   // The package selection stays only while the current project still has that package.
   useEffect(() => {

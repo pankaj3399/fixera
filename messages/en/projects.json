@@ -117,6 +117,7 @@
     "holiday": "Holiday",
     "notFound": "Project not found",
     "loadFailed": "Failed to load project",
+    "resumePackageUnavailable": "The package you chose is no longer offered. Please choose a package to book again.",
     "signInToBook": "Please sign in to book this project",
     "customersOnlyBook": "Only customers can book projects",
     "signInToContact": "Please sign in to contact this professional",

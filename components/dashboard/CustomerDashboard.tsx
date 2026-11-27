@@ -335,6 +335,25 @@ export default function CustomerDashboard() {
     return () => { latestActionsRequest.current++ }
   }, [loadActions])
 
+  // A customer action on the timeline changes bookings the Overview lists:
+  // reload its current page with the current filters, and the action items.
+  const bookingsQueryRef = useRef({ page: 1, status: "all", service: "all", search: "", address: "" })
+  useEffect(() => {
+    // The loaded page belongs to the current filters only once their response arrived.
+    const currentKey = JSON.stringify([bookingStatusFilter, bookingServiceFilter, debouncedBookingSearch.trim(), debouncedAddressFilter.trim()])
+    bookingsQueryRef.current = {
+      page: bookings.queryKey === currentKey ? bookings.page || 1 : 1,
+      status: bookingStatusFilter,
+      service: bookingServiceFilter,
+      search: debouncedBookingSearch,
+      address: debouncedAddressFilter,
+    }
+  }, [bookings.page, bookings.queryKey, bookingStatusFilter, bookingServiceFilter, debouncedBookingSearch, debouncedAddressFilter])
+  const refreshAfterTimelineChange = useCallback(() => {
+    void fetchList("bookings", bookingsQueryRef.current)
+    void loadActions()
+  }, [fetchList, loadActions])
+
   useEffect(() => {
     const loadClaims = async () => {
       try {
@@ -716,6 +735,7 @@ export default function CustomerDashboard() {
                   serviceFilter={bookingServiceFilter}
                   search={debouncedBookingSearch}
                   address={debouncedAddressFilter}
+                  onBookingsChanged={refreshAfterTimelineChange}
                 />
               </TabsContent>
             </Tabs>

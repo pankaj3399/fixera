@@ -15,6 +15,8 @@ interface Props {
   serviceFilter: string
   search: string
   address: string
+  /** Called after a customer action on the timeline succeeds, so the dashboard's other views refresh too. */
+  onBookingsChanged?: () => void
 }
 
 /**
@@ -24,11 +26,15 @@ interface Props {
  * active booking for the current filters itself, like the professional
  * board, and is shown in its own "Timeline" view.
  */
-export default function CustomerBookingTimeline({ statusFilter, serviceFilter, search, address }: Props) {
+export default function CustomerBookingTimeline({ statusFilter, serviceFilter, search, address, onBookingsChanged }: Props) {
   const t = useTranslations("dashboardWidgets")
   const [bookings, setBookings] = useState<TimelineBooking[]>([])
   const [state, setState] = useState<"loading" | "ready" | "error">("loading")
   const latestRequest = useRef(0)
+  // The board keeps the callback it had when an action started; reloading
+  // through these refs uses the filters current when the action completes.
+  const latestLoad = useRef<() => Promise<void>>(() => Promise.resolve())
+  const latestOnBookingsChanged = useRef(onBookingsChanged)
 
   const load = useCallback(async () => {
     const requestId = ++latestRequest.current
@@ -72,9 +78,22 @@ export default function CustomerBookingTimeline({ statusFilter, serviceFilter, s
   }, [statusFilter, serviceFilter, search, address])
 
   useEffect(() => {
+    latestLoad.current = load
+  }, [load])
+
+  useEffect(() => {
+    latestOnBookingsChanged.current = onBookingsChanged
+  }, [onBookingsChanged])
+
+  useEffect(() => {
     void load()
     return () => { latestRequest.current++ }
   }, [load])
+
+  const handleBookingUpdated = useCallback(async () => {
+    latestOnBookingsChanged.current?.()
+    await latestLoad.current()
+  }, [])
 
   if (state === "loading") {
     return (
@@ -97,7 +116,7 @@ export default function CustomerBookingTimeline({ statusFilter, serviceFilter, s
     <BookingTimelineBoard
       bookings={bookings}
       viewerRole="customer"
-      onBookingUpdated={load}
+      onBookingUpdated={handleBookingUpdated}
       emptyLabel={t("customerDashboard.timelineEmpty")}
     />
   )

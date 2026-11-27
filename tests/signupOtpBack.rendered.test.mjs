@@ -10,7 +10,7 @@ const { renderToStaticMarkup } = await import('react-dom/server')
 const { NextIntlClientProvider } = await import('next-intl')
 const { default: DualVerificationComponent } = await import('@/components/DualVerificationComponent')
 const { default: SignupContactEditor } = await import('@/components/auth/SignupContactEditor')
-const { splitSignupPhone } = await import('@/lib/auth/signupContact.ts')
+const { contactSaveOutcome, resendDeadlineAfterContactSave, splitSignupPhone } = await import('@/lib/auth/signupContact.ts')
 const { SIGNUP_OTP_RESEND_COOLDOWN_SECONDS } = await import('@/lib/auth/signupOtpCooldown.ts')
 
 const messages = (locale) => Object.fromEntries(['auth', 'account', 'common'].map((ns) => [
@@ -75,5 +75,22 @@ test('both signup flows let the user correct their details instead of resubmitti
     assert.match(source, /codesSentAt=\{codesSentAt\}/, file)
     assert.match(source, /setCodesSentAt\(Date\.now\(\)\)/, file)
     assert.doesNotMatch(source, /onBack=\{\(\) => setCurrentStep\('form'\)\}/, file)
+  }
+})
+
+test('CR: a changed contact without a sent code drops its old cooldown and gets its own message', () => {
+  const fresh = () => 5_000
+  // Changed and sent: a new cooldown. Changed but not sent: none, so Resend works now.
+  assert.equal(resendDeadlineAfterContactSave(true, true, 1_000, fresh), 5_000)
+  assert.equal(resendDeadlineAfterContactSave(true, false, 1_000, fresh), null)
+  // Unchanged: the channel keeps its cooldown.
+  assert.equal(resendDeadlineAfterContactSave(false, false, 1_000, fresh), 1_000)
+  const base = { email: 'a@b.co', phone: '+32470123456', emailChanged: false, phoneChanged: false, emailOtpSent: false, phoneOtpSent: false }
+  assert.equal(contactSaveOutcome(base), 'unchanged')
+  assert.equal(contactSaveOutcome({ ...base, emailChanged: true, emailOtpSent: true }), 'sent')
+  assert.equal(contactSaveOutcome({ ...base, emailChanged: true, emailOtpSent: false }), 'notSent')
+  assert.equal(contactSaveOutcome({ ...base, emailChanged: true, emailOtpSent: true, phoneChanged: true, phoneOtpSent: false }), 'notSent')
+  for (const locale of ['en', 'nl', 'fr']) {
+    assert.ok(messages(locale).auth.dualVerification.changeContact.savedNotSentToast, locale)
   }
 })
