@@ -7,6 +7,7 @@ import { componentHarness, elementText } from './helpers/componentHarness.mjs'
 import * as categoryLookup from '../lib/catalog/categoryLayoutLookup.ts'
 import * as categoryResolver from '../lib/catalog/resolveCategory.ts'
 import * as cooldown from '../lib/auth/signupOtpCooldown.ts'
+import * as signupContact from '../lib/auth/signupContact.ts'
 
 const require = createRequire(import.meta.url)
 function moduleWithMocks(file, mocks) {
@@ -129,6 +130,7 @@ test('professional verification mount permits resend until an actual channel sen
     sonner: { toast: { error() {}, success() {} } },
     '@/lib/i18n/useErrorMessage': { useErrorMessage: () => (_error, fallback) => fallback },
     '@/lib/auth/signupOtpCooldown': cooldown,
+    '@/lib/auth/signupContact': signupContact,
   })
   try {
     ui.render({ email: 'test@example.test', phone: '+320000000', onVerificationSuccess() {}, onBack() {} })

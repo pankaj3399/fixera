@@ -32,6 +32,7 @@ import { recordedQuotationPricing } from '@/lib/booking/quotationPricing';
 import type { QuotationPricingLine } from '@/types/quotation';
 import { formatCalendarDate } from '@/lib/bookingDetails';
 import { vatLineLabel } from '@/lib/booking/vatLineLabel';
+import { wizardResumeHref } from '@/lib/booking/checkoutDraft';
 
 interface BookingPayment {
   milestoneIndex?: number;
@@ -219,7 +220,7 @@ export default function BookingPaymentPage() {
   const bookingId = params.id as string;
   const t = useTranslations('checkout');
   const getErrorText = useErrorMessage();
-  const { formatMoney, currency: displayCurrency } = useCurrency();
+  const { formatMoney, formatDisplayMoney, currency: displayCurrency } = useCurrency();
   const { intl, dateFns } = useFormatLocale();
   const { customerPrice, loyalty, loyaltyLoaded, originalPrice, pricingReady } = useCustomerPricing();
   const customerPricingReady = pricingReady && loyaltyLoaded;
@@ -227,6 +228,14 @@ export default function BookingPaymentPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [booking, setBooking] = useState<Booking | null>(null);
+  // FT2-4B: an unpaid wizard checkout (no booking exists yet). Its payment
+  // page only offers a back button to the wizard.
+  const [checkoutInfo, setCheckoutInfo] = useState<{ id: string; projectId?: string } | null>(null);
+  const [slotUnavailable, setSlotUnavailable] = useState(false);
+  const [leavingCheckout, setLeavingCheckout] = useState(false);
+  // Its own message: the back action fails while the payment form is shown,
+  // where the page-level error is not rendered.
+  const [leaveCheckoutError, setLeaveCheckoutError] = useState('');
   const [clientSecret, setClientSecret] = useState<string>('');
   const [initializingPayment, setInitializingPayment] = useState(false);
   const [discountCodeInput, setDiscountCodeInput] = useState('');
@@ -907,6 +916,8 @@ export default function BookingPaymentPage() {
 
       const bookingInfo = bookingData.booking as Booking; // Backend returns { success, booking }
       setBooking(bookingInfo);
+      const checkout = (bookingData as { checkout?: { id?: string; projectId?: string } }).checkout;
+      setCheckoutInfo(checkout?.id ? { id: checkout.id, projectId: checkout.projectId || bookingInfo?.project?._id } : null);
       const plan = (bookingData as { details?: { payments?: { milestones?: Array<{
         expectedCustomerCharge?: number | null;
     customerChargeTotalWithVat?: number | null;
@@ -1020,8 +1031,14 @@ export default function BookingPaymentPage() {
         // Redirect to success page
         router.push(`/bookings/${bookingId}/payment/success`);
       } else {
-        // Check if error is about payment already being captured
-        if (data.error?.code === 'payment_intent_unexpected_state') {
+        if (data.error?.code === 'SLOT_UNAVAILABLE') {
+          // FT2-4B: the slot was taken while paying; the payment was
+          // refunded and no booking exists. Back to the wizard to rebook.
+          setSlotUnavailable(true);
+          setClientSecret('');
+          setError(getErrorText(data, t('paymentPage.errors.slotUnavailable')));
+          setLoading(false);
+        } else if (data.error?.code === 'payment_intent_unexpected_state') {
           router.push(`/bookings/${bookingId}/payment/success`);
         } else {
           setError(getErrorText(data, t('paymentPage.errors.paymentConfirmFailed')));
@@ -1038,6 +1055,46 @@ export default function BookingPaymentPage() {
     }
   };
 
+  const handleBackToWizard = async () => {
+    if (!checkoutInfo || leavingCheckout) return;
+    setLeavingCheckout(true);
+    setLeaveCheckoutError('');
+    try {
+      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+      const response = await fetch(`${API_URL}/api/bookings/${encodeURIComponent(checkoutInfo.id)}/checkout/abandon`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        setLeaveCheckoutError(getErrorText(data, t('paymentPage.errors.backToWizardFailed')));
+        return;
+      }
+      if (data?.data?.redirectTo) {
+        router.push(data.data.redirectTo);
+        return;
+      }
+      router.push(checkoutInfo.projectId ? wizardResumeHref(checkoutInfo.projectId) : '/');
+    } catch (err) {
+      setLeaveCheckoutError(getErrorText(err, t('paymentPage.errors.backToWizardFailed')));
+    } finally {
+      setLeavingCheckout(false);
+    }
+  };
+
+  const backToWizardButton = checkoutInfo ? (
+    <button
+      type="button"
+      onClick={() => void handleBackToWizard()}
+      disabled={leavingCheckout || confirming}
+      className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900 disabled:opacity-50"
+      data-testid="payment-back-to-wizard"
+    >
+      <span aria-hidden="true">←</span> {t('paymentPage.backToWizard')}
+    </button>
+  ) : null;
+
   const handlePaymentError = (errorMessage: string) => {
     setError(getErrorText(errorMessage, t('paymentPage.errors.confirmPaymentFailed')));
     // Optionally redirect to error page
@@ -1045,7 +1102,8 @@ export default function BookingPaymentPage() {
   };
 
   const discountInfo = booking?.payment?.discount;
-  // Payments are charged in the payment's own currency; formatting never converts.
+  // CUR: charged in the payment's own currency (EUR); until it is paid the
+  // amounts are shown in the display currency, with the EUR charge noted.
   const paymentCurrency = booking?.payment?.currency?.toUpperCase() || 'EUR';
   const appliedDiscountDisplay = appliedDiscountCode === 'APPLIED'
     ? t('paymentPage.discount.appliedFallback')
@@ -1154,6 +1212,24 @@ export default function BookingPaymentPage() {
     );
   }
 
+  if (slotUnavailable) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-8 text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('paymentPage.slotUnavailableTitle')}</h2>
+          <p role="alert" className="text-gray-600 mb-6">{error || t('paymentPage.errors.slotUnavailable')}</p>
+          <button
+            type="button"
+            onClick={() => router.push(checkoutInfo?.projectId ? wizardResumeHref(checkoutInfo.projectId) : '/')}
+            className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700"
+          >
+            {t('paymentPage.chooseAnotherDate')}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (scheduleStep) {
     const requiresProjectSchedule = Boolean(booking?.project?._id);
     const tomorrow = new Date();
@@ -1220,7 +1296,7 @@ export default function BookingPaymentPage() {
                   </span>
                   <span className="font-medium text-gray-900">
                     {customerPricingReady
-                      ? formatMoney(
+                      ? formatDisplayMoney(
                           currentQuoteTotals?.total ?? customerPrice(booking?.checkoutSnapshot?.customerPackageTotal ?? Number.NaN),
                           booking?.quote?.currency?.toUpperCase() || 'EUR'
                         )
@@ -1231,7 +1307,7 @@ export default function BookingPaymentPage() {
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">{t('paymentPage.vatIncluded')}</span>
                     <span className="text-gray-700">
-                      {formatMoney(currentQuoteTotals.vatAmount, booking?.quote?.currency?.toUpperCase() || 'EUR')}
+                      {formatDisplayMoney(currentQuoteTotals.vatAmount, booking?.quote?.currency?.toUpperCase() || 'EUR')}
                     </span>
                   </div>
                 )}
@@ -1257,7 +1333,7 @@ export default function BookingPaymentPage() {
                           </span>
                           <span className="text-gray-900">
                             {displayAmount != null
-                              ? formatMoney(
+                              ? formatDisplayMoney(
                                   displayAmount,
                                   booking?.quote?.currency?.toUpperCase() || 'EUR'
                                 )
@@ -1290,7 +1366,7 @@ export default function BookingPaymentPage() {
                   <div className="mt-3 pt-3 border-t rounded-md bg-amber-50 border border-amber-200 px-3 py-2">
                     <p className="text-xs text-amber-800" data-testid="quotation-recorded-saving">
                       {t.rich('paymentPage.savingWithAmount', {
-                        amount: formatMoney(recordedQuoteSaving, booking?.quote?.currency?.toUpperCase() || 'EUR'),
+                        amount: formatDisplayMoney(recordedQuoteSaving, booking?.quote?.currency?.toUpperCase() || 'EUR'),
                         strong: (chunks) => <strong>{chunks}</strong>,
                       })}
                     </p>
@@ -1313,7 +1389,7 @@ export default function BookingPaymentPage() {
                           <>
                             <span className="mx-1">·</span>
                             {t.rich('paymentPage.savingWithAmount', {
-                              amount: formatMoney(saving, currency),
+                              amount: formatDisplayMoney(saving, currency),
                               strong: (chunks) => <strong>{chunks}</strong>,
                             })}
                           </>
@@ -1595,7 +1671,7 @@ export default function BookingPaymentPage() {
                             <div className="flex items-center gap-3">
                               <span className="font-semibold text-gray-900">
                                 {customerPricingReady
-                                  ? formatMoney(customerPrice(option.customerPrice ?? Number.NaN), booking?.quote?.currency?.toUpperCase() || 'EUR')
+                                  ? formatDisplayMoney(customerPrice(option.customerPrice ?? Number.NaN), booking?.quote?.currency?.toUpperCase() || 'EUR')
                                   : '...'}
                               </span>
                               <input
@@ -1612,7 +1688,7 @@ export default function BookingPaymentPage() {
                     {selectedOptionTotal > 0 && !extrasIncludedInQuote && (
                       <p className="mt-3 text-xs font-medium text-gray-700">
                         {t('paymentPage.selectedOptionsTotal')} {customerPricingReady
-                          ? formatMoney(customerPrice(selectedOptionTotal), booking?.quote?.currency?.toUpperCase() || 'EUR')
+                          ? formatDisplayMoney(customerPrice(selectedOptionTotal), booking?.quote?.currency?.toUpperCase() || 'EUR')
                           : '...'}
                       </p>
                     )}
@@ -1677,13 +1753,24 @@ export default function BookingPaymentPage() {
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
         <div className="mb-4 flex flex-wrap items-center gap-3">
+          {checkoutInfo ? backToWizardButton : (
           <Link
             href={`/bookings/${bookingId}`}
             className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900"
           >
             <span aria-hidden="true">←</span> {t('paymentPage.backToDetails')}
           </Link>
-          {['quote_accepted', 'payment_pending'].includes(booking?.status || '') &&
+          )}
+          {checkoutInfo && leaveCheckoutError && (
+            <p
+              role="alert"
+              className="w-full rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600"
+              data-testid="payment-back-to-wizard-error"
+            >
+              {leaveCheckoutError}
+            </p>
+          )}
+          {!checkoutInfo && ['quote_accepted', 'payment_pending'].includes(booking?.status || '') &&
             !booking?.milestonePayments?.some(milestone => milestone.status === 'paid') && (
             <button
               type="button"
@@ -1712,7 +1799,9 @@ export default function BookingPaymentPage() {
           {/* Header */}
           <div className="bg-blue-600 px-6 py-4">
             <h1 className="text-2xl font-bold text-white">{t('paymentPage.completePayment')}</h1>
-            <p className="text-blue-100 text-sm mt-1">{t('paymentPage.bookingNumber', { number: booking?.bookingNumber || bookingId.slice(-6) })}</p>
+            {!checkoutInfo && (
+              <p className="text-blue-100 text-sm mt-1">{t('paymentPage.bookingNumber', { number: booking?.bookingNumber || bookingId.slice(-6) })}</p>
+            )}
           </div>
 
           {/* Booking Summary */}
@@ -1757,7 +1846,7 @@ export default function BookingPaymentPage() {
                         </p>
                         {(discountInfo?.codeDiscountAmount ?? 0) > 0 && (
                           <p className="text-xs text-gray-500 mt-0.5">
-                            {t('paymentPage.savingAmount', { amount: formatMoney(discountInfo?.codeDiscountAmount ?? 0, paymentCurrency) })}
+                            {t('paymentPage.savingAmount', { amount: formatDisplayMoney(discountInfo?.codeDiscountAmount ?? 0, paymentCurrency) })}
                           </p>
                         )}
                       </div>
@@ -1823,7 +1912,7 @@ export default function BookingPaymentPage() {
                 <p className="text-xs text-purple-700 mt-0.5">
                   {t('paymentPage.points.available', {
                     points: pointsBalance.points,
-                    value: formatMoney(pointsBalance.points * pointsBalance.conversionRate, paymentCurrency),
+                    value: formatDisplayMoney(pointsBalance.points * pointsBalance.conversionRate, paymentCurrency),
                   })}
                 </p>
                 {(discountInfo?.pointsRedeemed ?? 0) > 0 ? (
@@ -1831,7 +1920,7 @@ export default function BookingPaymentPage() {
                     <p className="text-sm text-gray-900">
                       {t('paymentPage.points.applied', {
                         points: discountInfo?.pointsRedeemed ?? 0,
-                        amount: formatMoney(discountInfo?.pointsDiscountAmount ?? 0, paymentCurrency),
+                        amount: formatDisplayMoney(discountInfo?.pointsDiscountAmount ?? 0, paymentCurrency),
                       })}
                     </p>
                     <button
@@ -1890,7 +1979,7 @@ export default function BookingPaymentPage() {
                 <div className="flex justify-between">
                   <span className="text-gray-600">{t('paymentPage.fullPrice')}</span>
                   <span className="text-gray-900">
-                    {formatMoney(originalServiceAmount, paymentCurrency)}
+                    {formatDisplayMoney(originalServiceAmount, paymentCurrency)}
                   </span>
                 </div>
               )}
@@ -1899,7 +1988,7 @@ export default function BookingPaymentPage() {
                 <div className="flex justify-between">
                   <span className="text-gray-600">{t('paymentPage.selectedOptionsInfo')}</span>
                   <span className="text-sm text-gray-500">
-                    {formatMoney(commissionedOptionsAmount, paymentCurrency)}
+                    {formatDisplayMoney(commissionedOptionsAmount, paymentCurrency)}
                   </span>
                 </div>
               )}
@@ -1910,7 +1999,7 @@ export default function BookingPaymentPage() {
                     {t('paymentPage.loyaltyDiscountLine', { percent: discountInfo?.loyaltyPercentage ?? 0 })}
                   </span>
                   <span className="text-green-700">
-                    -{formatMoney(discountInfo?.loyaltyAmount ?? 0, paymentCurrency)}
+                    -{formatDisplayMoney(discountInfo?.loyaltyAmount ?? 0, paymentCurrency)}
                   </span>
                 </div>
               )}
@@ -1921,7 +2010,7 @@ export default function BookingPaymentPage() {
                     {t('paymentPage.returningCustomerLine', { percent: discountInfo?.repeatBuyerPercentage ?? 0 })}
                   </span>
                   <span className="text-green-700">
-                    -{formatMoney(discountInfo?.repeatBuyerAmount ?? 0, paymentCurrency)}
+                    -{formatDisplayMoney(discountInfo?.repeatBuyerAmount ?? 0, paymentCurrency)}
                   </span>
                 </div>
               )}
@@ -1932,7 +2021,7 @@ export default function BookingPaymentPage() {
                     {t('paymentPage.pointsRedeemedLine', { points: discountInfo?.pointsRedeemed ?? 0 })}
                   </span>
                   <span className="text-green-700">
-                    -{formatMoney(discountInfo?.pointsDiscountAmount ?? 0, paymentCurrency)}
+                    -{formatDisplayMoney(discountInfo?.pointsDiscountAmount ?? 0, paymentCurrency)}
                   </span>
                 </div>
               )}
@@ -1941,7 +2030,7 @@ export default function BookingPaymentPage() {
                 <div className="flex justify-between">
                   <span className="text-gray-600">{t('paymentPage.referralDiscountLine')}</span>
                   <span className="text-green-700">
-                    -{formatMoney(discountInfo?.referralDiscountAmount ?? 0, paymentCurrency)}
+                    -{formatDisplayMoney(discountInfo?.referralDiscountAmount ?? 0, paymentCurrency)}
                   </span>
                 </div>
               )}
@@ -1954,7 +2043,7 @@ export default function BookingPaymentPage() {
                       : t('paymentPage.discountCodeLine')}
                   </span>
                   <span className="text-green-700">
-                    -{formatMoney(discountInfo?.codeDiscountAmount ?? 0, paymentCurrency)}
+                    -{formatDisplayMoney(discountInfo?.codeDiscountAmount ?? 0, paymentCurrency)}
                   </span>
                 </div>
               )}
@@ -1962,7 +2051,7 @@ export default function BookingPaymentPage() {
               <div className="flex justify-between">
                 <span className="text-gray-600">{t('paymentPage.serviceAmount')}</span>
                 <span className="text-gray-900">
-                  {formatMoney(booking?.payment?.netAmount ?? 0, paymentCurrency)}
+                  {formatDisplayMoney(booking?.payment?.netAmount ?? 0, paymentCurrency)}
                 </span>
               </div>
               {booking?.payment?.vatBreakdown && booking.payment.vatBreakdown.length > 1 && (
@@ -1974,7 +2063,7 @@ export default function BookingPaymentPage() {
                         {vatLineLabel(line.description, booking.project?.extraOptions)} ({line.vatLabel || t('paymentPage.vatRateLabel', { rate: line.vatRate })})
                       </span>
                       <span className="text-gray-900">
-                        {formatMoney(line.vatAmount, paymentCurrency)}
+                        {formatDisplayMoney(line.vatAmount, paymentCurrency)}
                       </span>
                     </div>
                   ))}
@@ -1988,7 +2077,7 @@ export default function BookingPaymentPage() {
                       : t('paymentPage.vatLine', { rate: booking?.payment?.vatRate ?? 0 })}
                   </span>
                   <span className="text-gray-900">
-                    {formatMoney(booking?.payment?.vatAmount ?? 0, paymentCurrency)}
+                    {formatDisplayMoney(booking?.payment?.vatAmount ?? 0, paymentCurrency)}
                   </span>
                 </div>
               )}
@@ -2000,12 +2089,15 @@ export default function BookingPaymentPage() {
               <div className="flex justify-between pt-2 border-t">
                 <span className="text-lg font-semibold text-gray-900">{t('paymentPage.total')}</span>
                 <span className="text-lg font-bold text-gray-900">
-                  {formatMoney(booking?.payment?.totalWithVat ?? 0, paymentCurrency)}
+                  {formatDisplayMoney(booking?.payment?.totalWithVat ?? 0, paymentCurrency)}
                 </span>
               </div>
               {displayCurrency !== paymentCurrency && (
-                <p className="text-right text-xs text-gray-500">
-                  {t('paymentPage.chargeCurrencyNote', { currency: paymentCurrency })}
+                <p className="text-right text-xs text-gray-500" data-testid="payment-charge-note">
+                  {t('paymentPage.chargeAmountNote', {
+                    amount: formatMoney(booking?.payment?.totalWithVat ?? 0, paymentCurrency),
+                    currency: paymentCurrency,
+                  })}
                 </p>
               )}
             </div>

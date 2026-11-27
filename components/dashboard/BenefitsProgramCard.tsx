@@ -53,11 +53,20 @@ type ProfessionalBenefitsResponse = {
 interface BenefitsProgramCardProps {
   customerData?: CustomerBenefitsResponse | null
   professionalData?: ProfessionalBenefitsResponse | null
+  /**
+   * FT2-9: the professional dashboard shows the programme at half width and
+   * at half the height (level, points, next level and its requirements); the
+   * full detail stays on the benefits page.
+   */
+  compact?: boolean
+  className?: string
 }
 
 export default function BenefitsProgramCard({
   customerData: customerDataProp,
   professionalData: professionalDataProp,
+  compact = false,
+  className,
 }: BenefitsProgramCardProps) {
   const { user } = useAuth()
   const t = useTranslations("dashboardWidgets")
@@ -146,8 +155,69 @@ export default function BenefitsProgramCard({
     ? customerData?.benefits || []
     : professionalData?.level?.nextLevel?.missingCriteria || []
 
+  if (compact) {
+    return (
+      <Card className={`gap-3 border border-indigo-100 bg-white/85 py-4 shadow-sm backdrop-blur ${className ?? ""}`}>
+        <CardHeader className="px-4">
+          <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+            <Gift className="h-5 w-5 text-indigo-600" />
+            {t("benefitsProgram.title")} <TierBadge level={currentLevel} color={currentLevelColor} />
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 px-4">
+          {loading ? (
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {t("benefitsProgram.loading")}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-lg border bg-slate-50 px-3 py-2">
+                  <p className="text-[11px] text-slate-500">{t("benefitsProgram.currentLevel")}</p>
+                  <p className="text-sm font-semibold text-slate-900">{currentLevel}</p>
+                </div>
+                <div className="rounded-lg border bg-slate-50 px-3 py-2">
+                  <p className="text-[11px] text-slate-500">{t("benefitsProgram.points")}</p>
+                  <p className="text-sm font-semibold text-slate-900">{pointsBalance}</p>
+                </div>
+                <div className="rounded-lg border bg-slate-50 px-3 py-2">
+                  <p className="text-[11px] text-slate-500">{isCustomer ? t("benefitsProgram.totalSpent") : t("benefitsProgram.nextLevel")}</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {isCustomer ? formatMoney(customerData?.userStats?.totalSpent ?? user.totalSpent ?? 0) : nextLevel || t("benefitsProgram.topLevel")}
+                  </p>
+                </div>
+              </div>
+              {nextLevel && (
+                <div>
+                  <div className="flex items-center justify-between text-xs text-indigo-900">
+                    <span className="flex items-center gap-1.5">
+                      <TrendingUp className="h-3.5 w-3.5" />
+                      {t("benefitsProgram.nextLevelValue", { level: nextLevel })}
+                    </span>
+                    <span>{progress}%</span>
+                  </div>
+                  <Progress value={progress} className="mt-1.5 h-1.5" />
+                </div>
+              )}
+              {perks.length > 0 && (
+                <div className="flex flex-wrap gap-1.5" aria-label={isCustomer ? t("benefitsProgram.benefits") : t("benefitsProgram.nextLevelRequirements")}>
+                  {perks.slice(0, 4).map((item) => (
+                    <Badge key={item} variant="secondary" className="max-w-full whitespace-normal text-left text-[11px]">
+                      {item}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
-    <Card className="bg-white/85 backdrop-blur border border-indigo-100 shadow-sm">
+    <Card className={`bg-white/85 backdrop-blur border border-indigo-100 shadow-sm ${className ?? ""}`}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Gift className="h-5 w-5 text-indigo-600" />

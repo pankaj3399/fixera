@@ -389,7 +389,12 @@
     },
     "invoice": "Factuur",
     "download": "Downloaden",
-    "acceptPay": "Accepteren en betalen"
+    "acceptPay": "Accepteren en betalen",
+    "bookingViews": {
+      "overview": "Boekingsoverzicht",
+      "timeline": "Tijdlijn"
+    },
+    "timelineEmpty": "Nog geen actieve boekingen om in de tijdlijn te tonen."
   },
   "professionalManager": {
     "page": {
@@ -450,7 +455,11 @@
       "loadBookings": "Boekingen laden mislukt."
     },
     "filterByStatus": "Filter op status",
-    "filterByService": "Filter op dienst"
+    "filterByService": "Filter op dienst",
+    "views": {
+      "overview": "Boekingsoverzicht",
+      "timeline": "Tijdlijn"
+    }
   },
   "tables": {
     "colProject": "Project / subproject",
@@ -471,8 +480,7 @@
     "colPrice": "Prijs",
     "colStatus": "Status",
     "colInvoice": "Factuur",
-    "colPayoutDate": "Uitbetalingsdatum",
-    "colPayoutRefund": "Uitbetaling / terugbetaling",
+    "colPayout": "Uitbetaling: datum / bedrag / terugbetaling",
     "colActions": "Snelle acties",
     "colDetails": "Details",
     "bookingsTableLabel": "Boekingen",
@@ -490,7 +498,8 @@
     "durationUnits": {
       "hours": "{count, plural, one {# uur} other {# uur}}",
       "days": "{count, plural, one {# dag} other {# dagen}}"
-    }
+    },
+    "colCompare": "Vergelijken"
   },
   "levelUp": {
     "customerTitle": "Niveau omhoog!",

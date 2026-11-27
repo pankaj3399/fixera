@@ -109,7 +109,6 @@
     "vatLine": "Btw ({rate}%):",
     "reverseCharge": "Verlegging van btw — de btw wordt door de klant verantwoord.",
     "total": "Totaal:",
-    "chargeCurrencyNote": "Je betaling wordt in {currency} verwerkt.",
     "enterPaymentDetails": "Voer je betaalgegevens in",
     "paymentAlreadyCompleted": "Betaling al voltooid",
     "redirectingToConfirmation": "Doorsturen naar de bevestigingspagina...",
@@ -127,7 +126,9 @@
       "paymentInfoInitFailed": "Betaalgegevens konden niet automatisch worden geladen. Neem contact op met support of probeer het later opnieuw.",
       "loadPaymentDetailsFailed": "Betaalgegevens laden mislukt",
       "paymentConfirmFailed": "Betaling bevestigen mislukt",
-      "confirmPaymentFailed": "Betaling bevestigen mislukt"
+      "confirmPaymentFailed": "Betaling bevestigen mislukt",
+      "slotUnavailable": "Het gekozen tijdslot werd geboekt voordat je betaling rond was. Je betaling is volledig terugbetaald.",
+      "backToWizardFailed": "We konden niet terug naar de boekingswizard. Probeer het opnieuw."
     },
     "preparationValue": "Voorbereiding: {duration}",
     "executionValue": "Uitvoering: {duration}",
@@ -151,7 +152,11 @@
       "notApplied": "Deze punten konden niet worden toegepast op deze betaling.",
       "unableToApply": "We konden je punten niet toepassen. Probeer het opnieuw.",
       "unableToRemove": "We konden je punten niet verwijderen. Probeer het opnieuw."
-    }
+    },
+    "backToWizard": "Terug naar de boekingswizard",
+    "slotUnavailableTitle": "Dit tijdslot is niet meer beschikbaar",
+    "chooseAnotherDate": "Kies een andere datum",
+    "chargeAmountNote": "Bedragen zijn omgerekend ter informatie. Je betaalt {amount} in {currency}."
   },
   "paymentSuccess": {
     "paymentSuccessful": "Betaling geslaagd",

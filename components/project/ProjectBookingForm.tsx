@@ -45,6 +45,15 @@ import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+  clearCheckoutDraft,
+  pickHourlySlot,
+  saveCheckoutDraft,
+  vatInputsKey,
+  type CheckoutDraft,
+  type RestoredHourlyTime,
+} from '@/lib/booking/checkoutDraft';
+import { vatInclusiveTotal } from '@/lib/booking/vatPreviewTotal';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useFormatLocale } from '@/lib/i18n/useFormatLocale';
 import { getViewerTimezone, normalizeTimezone } from '@/lib/timezoneDisplay';
@@ -119,6 +128,8 @@ interface ProjectBookingFormProps {
   project: PublicProjectDto;
   onBack: () => void;
   selectedSubprojectIndex?: number | null;
+  /** FT2-4B: answers restored after going back from the payment page. */
+  resumeDraft?: CheckoutDraft | null;
 }
 
 interface RFQAnswer {
@@ -288,6 +299,7 @@ export default function ProjectBookingForm({
   project,
   onBack,
   selectedSubprojectIndex,
+  resumeDraft,
 }: ProjectBookingFormProps) {
   const { customerPrice, customerPackagePrice: fetchPackageCustomerTotal, pricingReady, pricingError, retryPricing, loyaltyLoaded } = useCustomerPricing();
   const customerPricingReady = pricingReady && loyaltyLoaded;
@@ -297,15 +309,16 @@ export default function ProjectBookingForm({
   // Machine translations of the professional's/catalogue text (labels only; values are submitted as stored).
   const ct = useContentText();
   const getErrorText = useErrorMessage();
-  const { formatMoney, currency } = useCurrency();
+  const { formatMoney, formatDisplayMoney, currency } = useCurrency();
   const { intl, dateFns } = useFormatLocale();
 
-  // All amounts in this form are EUR: it is the step right before payment, so
-  // nothing is converted — only formatted in the active locale.
+  // CUR: every amount in this form is EUR (prices and the charge). Until the
+  // payment is done they are shown in the visitor's display currency, like the
+  // search and project pages; the review step notes the EUR charge.
   const formatAmount = useCallback(
     (amount?: number | null) =>
-      typeof amount === 'number' ? formatMoney(amount) : '…',
-    [formatMoney]
+      typeof amount === 'number' ? formatDisplayMoney(amount, 'EUR') : '…',
+    [formatDisplayMoney]
   );
 
   // Unit labels for the price model: known models get a translated label, an
@@ -398,12 +411,14 @@ export default function ProjectBookingForm({
   >(
     typeof selectedSubprojectIndex === 'number' ? selectedSubprojectIndex : null
   );
-  const [estimatedUsage, setEstimatedUsage] = useState<number>(1);
+  const [estimatedUsage, setEstimatedUsage] = useState<number>(resumeDraft?.estimatedUsage ?? 1);
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [showCalendar, setShowCalendar] = useState(false);
   const [hasUserSelectedDate, setHasUserSelectedDate] = useState(false);
   const [serverSlotsForSelectedDate, setServerSlotsForSelectedDate] = useState<string[] | null>(null);
+  // The date the loaded server slots belong to: they are authoritative for that date only.
+  const [serverSlotsDate, setServerSlotsDate] = useState<string | null>(null);
   const [serverSlotsError, setServerSlotsError] = useState(false);
   const [loadingServerSlots, setLoadingServerSlots] = useState(false);
   const [scheduleWindow, setScheduleWindow] = useState<{
@@ -415,21 +430,36 @@ export default function ProjectBookingForm({
     throughputDays?: number;
   } | null>(null);
   const [loadingScheduleWindow, setLoadingScheduleWindow] = useState(false);
-  const [rfqAnswers, setRFQAnswers] = useState<RFQAnswer[]>([]);
-  const [vatAnswers, setVatAnswers] = useState<Record<string, VatAnswer>>({});
+  const [rfqAnswers, setRFQAnswers] = useState<RFQAnswer[]>((resumeDraft?.rfqAnswers as RFQAnswer[] | undefined) ?? []);
+  const [vatAnswers, setVatAnswers] = useState<Record<string, VatAnswer>>((resumeDraft?.vatAnswers as Record<string, VatAnswer> | undefined) ?? {});
   const [vatPreview, setVatPreview] = useState<VatPreviewDecision | null>(null);
-  const [proceedAtStandardVat, setProceedAtStandardVat] = useState(false);
+  const [proceedAtStandardVat, setProceedAtStandardVat] = useState(resumeDraft?.proceedAtStandardVat ?? false);
   const [uploadingQuestionIndexes, setUploadingQuestionIndexes] = useState<Set<number>>(new Set());
   const [selectedExtraOptions, setSelectedExtraOptions] = useState<number[]>(
-    []
+    resumeDraft?.selectedExtraOptions ?? []
   );
-  const [additionalNotes, setAdditionalNotes] = useState('');
-  const [rfqAttachments, setRfqAttachments] = useState<{ url: string; name: string }[]>([]);
+  const [additionalNotes, setAdditionalNotes] = useState(resumeDraft?.additionalNotes ?? '');
+  const [rfqAttachments, setRfqAttachments] = useState<{ url: string; name: string }[]>(resumeDraft?.rfqAttachments ?? []);
   const [uploadingRfqAttachment, setUploadingRfqAttachment] = useState(false);
-  const [useProfileAddress, setUseProfileAddress] = useState(true);
-  const [manualAddress, setManualAddress] = useState('');
-  const [isServiceAddressValid, setIsServiceAddressValid] = useState(false);
-  const [servicePlace, setServicePlace] = useState<PlaceData | undefined>();
+  const [useProfileAddress, setUseProfileAddress] = useState(resumeDraft?.useProfileAddress ?? true);
+  const [manualAddress, setManualAddress] = useState(resumeDraft?.manualAddress ?? '');
+  const [isServiceAddressValid, setIsServiceAddressValid] = useState(resumeDraft?.isServiceAddressValid ?? false);
+  const [servicePlace, setServicePlace] = useState<PlaceData | undefined>(resumeDraft?.servicePlace as PlaceData | undefined);
+  // FT2-4B: the hourly start time of a restored draft. It survives the date
+  // and slot initialization and is dropped once the customer picks another
+  // date, time or package, or the date no longer offers it.
+  const restoredTimeRef = useRef<RestoredHourlyTime | null>(
+    resumeDraft?.selectedDate && resumeDraft.selectedTime
+      ? { date: resumeDraft.selectedDate, time: resumeDraft.selectedTime }
+      : null
+  );
+  // The VAT inputs the current standard-VAT choice was made for. A restored
+  // choice keeps the key it was saved with, so an unchanged preview keeps it.
+  const standardVatInputsKeyRef = useRef<string | null>(resumeDraft?.vatInputsKey ?? null);
+  const vatPreviewCountry =
+    countryFromPlace(servicePlace) ||
+    (useProfileAddress ? user?.location?.country : undefined);
+  const currentVatInputsKey = vatInputsKey(Object.values(vatAnswers), vatPreviewCountry);
   const selectedPackage =
     selectedPackageIndex !== null
       ? project.subprojects[selectedPackageIndex]
@@ -532,7 +562,12 @@ export default function ProjectBookingForm({
       return;
     }
     setVatPreview(null);
-    setProceedAtStandardVat(false);
+    // Keep the standard-VAT choice while its inputs are unchanged (going
+    // back and forth, or a restored draft); drop it once they change.
+    if (standardVatInputsKeyRef.current !== currentVatInputsKey) {
+      setProceedAtStandardVat(false);
+    }
+    standardVatInputsKeyRef.current = currentVatInputsKey;
     let cancelled = false;
     (async () => {
       try {
@@ -546,9 +581,7 @@ export default function ProjectBookingForm({
               projectId: project._id,
               serviceConfigurationId: project.serviceConfigurationId,
               vatAnswers: Object.values(vatAnswers),
-              serviceCountry:
-                countryFromPlace(servicePlace) ||
-                (useProfileAddress ? user?.location?.country : undefined),
+              serviceCountry: vatPreviewCountry,
             }),
           }
         );
@@ -563,6 +596,8 @@ export default function ProjectBookingForm({
     return () => {
       cancelled = true;
     };
+    // currentVatInputsKey and vatPreviewCountry derive from the listed inputs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep, project._id, project.serviceConfigurationId, vatAnswers, servicePlace, useProfileAddress, user?.location?.country]);
 
   // Check if unit pricing - either explicit type or inferred from priceModel for old projects
@@ -680,7 +715,12 @@ export default function ProjectBookingForm({
     );
   }, []);
 
+  // The package the draft was restored with (compared by value, so a
+  // re-run of the mount effect in development keeps the restored time).
+  const restoredPackageIndexRef = useRef(selectedPackageIndex);
   useEffect(() => {
+    // Another package is a new choice: the restored time is not for it.
+    if (selectedPackageIndex !== restoredPackageIndexRef.current) restoredTimeRef.current = null;
     const packageIndex = typeof selectedPackageIndex === 'number'
       ? selectedPackageIndex
       : undefined;
@@ -706,6 +746,23 @@ export default function ProjectBookingForm({
     }
     setHasUserSelectedDate(false);
   }, [selectedPackageIndex]);
+
+  // FT2-4B: back from the payment page. Declared after the package effect so
+  // the restored date wins over its reset on mount; the review step shows the
+  // restored answers. One-shot: the draft is consumed here.
+  const pendingResumeRef = useRef(resumeDraft ?? null);
+  useEffect(() => {
+    const draft = pendingResumeRef.current;
+    if (!draft) return;
+    pendingResumeRef.current = null;
+    clearCheckoutDraft(project._id);
+    if (draft.selectedDate) {
+      setHasUserSelectedDate(true);
+      setSelectedDate(draft.selectedDate);
+      setSelectedTime(draft.selectedTime || '');
+    }
+    setCurrentStep(4);
+  }, [project._id]);
 
   useEffect(() => {
     if (!isUnitPricing || typeof selectedPackageIndex !== 'number') return;
@@ -836,13 +893,19 @@ export default function ProjectBookingForm({
     if (Number.isNaN(dateObj.getTime())) {
       return;
     }
-    const slots = generateTimeSlotsForDate(dateObj);
-    if (slots.length === 0) {
-      setSelectedTime('');
-      return;
+    // Once the server's slots for this date have loaded they are the
+    // authoritative list; the client-generated slots (which may use default
+    // hours when working hours failed to load) only stand in until then.
+    const serverSlots = serverSlotsForSelectedDate && serverSlotsDate === selectedDate ? serverSlotsForSelectedDate : null;
+    const restored = restoredTimeRef.current;
+    // The server no longer offers the restored time: drop it.
+    if (serverSlots && restored && restored.date === selectedDate && !serverSlots.includes(restored.time)) {
+      restoredTimeRef.current = null;
     }
-    if (!selectedTime || !slots.includes(selectedTime)) {
-      setSelectedTime(slots[0]);
+    const slots = serverSlots ?? generateTimeSlotsForDate(dateObj);
+    const nextTime = pickHourlySlot(slots, selectedTime, selectedDate, restoredTimeRef.current);
+    if (nextTime !== selectedTime) {
+      setSelectedTime(nextTime);
     }
   }, [
     selectedDate,
@@ -852,12 +915,15 @@ export default function ProjectBookingForm({
     selectedPackage,
     bookedExecution,
     selectedTime,
+    serverSlotsForSelectedDate,
+    serverSlotsDate,
   ]);
 
   useEffect(() => {
     if (projectMode !== 'hours' || !selectedDate) {
       latestSlotsRequestRef.current += 1;
       setServerSlotsForSelectedDate(null);
+      setServerSlotsDate(null);
       setServerSlotsError(false);
       setLoadingServerSlots(false);
       return;
@@ -869,6 +935,7 @@ export default function ProjectBookingForm({
     const run = async () => {
       try {
         setServerSlotsForSelectedDate(null);
+        setServerSlotsDate(null);
         setServerSlotsError(false);
         setLoadingServerSlots(true);
         let url = `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/public/projects/${project._id}/available-slots?date=${selectedDate}`;
@@ -891,6 +958,7 @@ export default function ProjectBookingForm({
           return;
         }
         setServerSlotsForSelectedDate(data.slots as string[]);
+        setServerSlotsDate(selectedDate);
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return;
         if (isCurrent()) {
@@ -906,13 +974,6 @@ export default function ProjectBookingForm({
     run();
     return () => controller.abort();
   }, [project._id, selectedDate, selectedPackageIndex, projectMode, estimatedUsage, isUnitPricing]);
-
-  useEffect(() => {
-    if (!serverSlotsForSelectedDate) return;
-    if (!selectedTime) return;
-    if (serverSlotsForSelectedDate.includes(selectedTime)) return;
-    setSelectedTime(serverSlotsForSelectedDate[0] || '');
-  }, [serverSlotsForSelectedDate, selectedTime]);
 
   const fetchScheduleWindow = useCallback(async (startDate: string, startTime?: string) => {
     const requestId = ++scheduleWindowRequestRef.current;
@@ -2615,6 +2676,32 @@ export default function ProjectBookingForm({
               project,
               selectedSubprojectIndex: selectedPackageIndex,
             });
+            // FT2-4B: no booking exists until payment; keep the answers so
+            // the payment page's back button returns to this wizard intact.
+            saveCheckoutDraft(
+              project._id,
+              user?._id,
+              {
+                selectedPackageIndex,
+                selectedPackageId: selectedPackage?._id,
+                selectedPackageName: selectedPackage?.name,
+                vatInputsKey: currentVatInputsKey,
+                estimatedUsage,
+                selectedDate,
+                selectedTime,
+                rfqAnswers,
+                vatAnswers,
+                proceedAtStandardVat,
+                selectedExtraOptions,
+                additionalNotes,
+                rfqAttachments,
+                useProfileAddress,
+                manualAddress,
+                isServiceAddressValid,
+                servicePlace,
+              },
+              data.checkout?.id
+            );
             router.replace(`/bookings/${data.booking._id}/payment`);
             return;
           }
@@ -3189,9 +3276,16 @@ export default function ProjectBookingForm({
   }, [hasProfileAddress, useProfileAddress]);
 
   useEffect(() => {
-    if (projectMode === 'hours') {
-      setSelectedTime('');
+    if (projectMode !== 'hours') return;
+    const restored = restoredTimeRef.current;
+    // Draft initialization: the mount pass (no date yet) and the restored
+    // date keep the restored time. Any other date is the customer's choice.
+    if (restored && (!selectedDate || selectedDate === restored.date)) {
+      if (selectedDate) setSelectedTime(restored.time);
+      return;
     }
+    restoredTimeRef.current = null;
+    setSelectedTime('');
   }, [projectMode, selectedDate]);
 
   return (
@@ -3698,9 +3792,11 @@ export default function ProjectBookingForm({
                                 <button
                                   key={timeSlot}
                                   type='button'
-                                  onClick={() =>
-                                    !isPast && setSelectedTime(timeSlot)
-                                  }
+                                  onClick={() => {
+                                    if (isPast) return;
+                                    restoredTimeRef.current = null;
+                                    setSelectedTime(timeSlot);
+                                  }}
                                   disabled={isPast}
                                   className={`
                                     px-2 py-2 rounded-lg border text-sm font-medium transition-all flex flex-col items-center
@@ -3747,6 +3843,7 @@ export default function ProjectBookingForm({
                                       )
                                       : '';
                                     if (startInstant && !isDateBlocked(startInstant)) {
+                                      restoredTimeRef.current = null;
                                       setHasUserSelectedDate(true);
                                       setSelectedDate(startInstant);
                                       if (startTime) {
@@ -4774,11 +4871,6 @@ export default function ProjectBookingForm({
                               )}
                             </span>
                           </div>
-                          {currency !== 'EUR' && (
-                            <p className='text-xs text-gray-600'>
-                              {t('chargeNote')}
-                            </p>
-                          )}
                         </>
                       )}
 
@@ -4876,6 +4968,17 @@ export default function ProjectBookingForm({
                             </>
                           )}
                         </div>
+                      )}
+
+                      {finalDisplayTotal > 0 && currency !== 'EUR' && customerPricingReady && (
+                        <p className='text-xs text-gray-600' data-testid='wizard-charge-note'>
+                          {t('chargeNote', {
+                            amount: formatMoney(
+                              vatInclusiveTotal(finalDisplayTotal, vatPreview, proceedAtStandardVat),
+                              'EUR'
+                            ),
+                          })}
+                        </p>
                       )}
 
                       {selectedPackage.pricing.type !== 'rfq' && (

@@ -15,12 +15,28 @@ import {
   otpResendDeadline,
   otpResendStateAt,
 } from "@/lib/auth/signupOtpCooldown"
+import type { SignupResendDeadlines } from "@/lib/auth/signupContact"
 
 interface DualVerificationProps {
   email: string;
   phone: string;
   onVerificationSuccess: () => void;
-  onBack: () => void;
+  /**
+   * "Back: change your details" (FT2-6C): the parent shows the signup form
+   * again, prefilled from the account, in edit mode.
+   */
+  onBack?: () => void;
+  /**
+   * Per-channel resend cooldown deadlines (epoch ms). The parent owns them so
+   * they survive a trip back to the form: set from signup's send, kept for an
+   * unchanged channel and restarted for a changed one. Omitted or null:
+   * resend is available (no send time is ever assumed from a mount).
+   */
+  resendDeadlines?: SignupResendDeadlines | null;
+  /** Reports a deadline change after a successful resend. */
+  onResendDeadlinesChange?: (deadlines: SignupResendDeadlines) => void;
+  /** Channels already verified, e.g. when coming back from the form. */
+  initialVerified?: { email: boolean; phone: boolean };
 }
 
 interface VerificationState {
@@ -42,31 +58,40 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
   email,
   phone,
   onVerificationSuccess,
-  onBack
+  onBack,
+  resendDeadlines,
+  onResendDeadlinesChange,
+  initialVerified,
 }) => {
   const t = useTranslations("auth")
   const getErrorText = useErrorMessage()
  
+  const initialEmailResend = otpResendStateAt(resendDeadlines?.email ?? null);
+  const initialPhoneResend = otpResendStateAt(resendDeadlines?.phone ?? null);
   const [verificationState, setVerificationState] = useState<VerificationState>({
-    emailVerified: false,
-    phoneVerified: false,
+    emailVerified: Boolean(initialVerified?.email),
+    phoneVerified: Boolean(initialVerified?.phone),
     emailOTP: "",
     phoneOTP: "",
     emailLoading: false,
     phoneLoading: false,
     emailResendLoading: false,
     phoneResendLoading: false,
-    emailResendDisabled: false,
-    phoneResendDisabled: false,
-    emailResendTime: 0,
-    phoneResendTime: 0
+    emailResendDisabled: initialEmailResend.disabled,
+    phoneResendDisabled: initialPhoneResend.disabled,
+    emailResendTime: initialEmailResend.remainingSeconds,
+    phoneResendTime: initialPhoneResend.remainingSeconds
   });
 
   // Countdown timers for resend buttons. Each channel keeps a wall-clock
   // deadline; ticks only recompute the remaining seconds from it, so a
   // throttled interval in a hidden tab cannot stretch the cooldown.
-  const emailResendDeadlineRef = useRef<number | null>(null);
-  const phoneResendDeadlineRef = useRef<number | null>(null);
+  const emailResendDeadlineRef = useRef<number | null>(resendDeadlines?.email ?? null);
+  const phoneResendDeadlineRef = useRef<number | null>(resendDeadlines?.phone ?? null);
+  const reportDeadlines = () => onResendDeadlinesChange?.({
+    email: emailResendDeadlineRef.current,
+    phone: phoneResendDeadlineRef.current,
+  });
   useEffect(() => {
     // Returning to onboarding does not imply another OTP was sent.
     // Successful resend handlers establish their own channel's deadline.
@@ -88,12 +113,19 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
           phoneResendDisabled: phone.disabled,
         });
     };
+    tick();
     const timer = setInterval(tick, 1000);
     document.addEventListener("visibilitychange", tick);
     return () => {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", tick);
     };
+  }, []);
+
+  // The step replaces a long signup form: start at the top so the back
+  // button and both code fields are in view (FT2-6C).
+  useEffect(() => {
+    if (typeof window !== "undefined") window.scrollTo({ top: 0 });
   }, []);
 
   // Check if both verifications are complete
@@ -123,6 +155,7 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
       if (data.success) {
         toast.success(t("dualVerification.emailCodeSentToast"));
         emailResendDeadlineRef.current = otpResendDeadline();
+        reportDeadlines();
         setVerificationState(prev => ({ 
           ...prev, 
           emailResendDisabled: true, 
@@ -155,6 +188,7 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
       if (data.success) {
         toast.success(t("dualVerification.phoneCodeSentToast"));
         phoneResendDeadlineRef.current = otpResendDeadline();
+        reportDeadlines();
         setVerificationState(prev => ({ 
           ...prev, 
           phoneResendDisabled: true, 
@@ -259,16 +293,21 @@ const DualVerificationComponent: React.FC<DualVerificationProps> = ({
       <div className="w-full max-w-4xl">
         {/* Header */}
         <div className="text-center mb-8">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onBack}
-            className="absolute top-6 left-6 flex items-center gap-2 text-gray-600 hover:text-gray-900"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            {t("dualVerification.back")}
-          </Button>
-          
+          {onBack && !(verificationState.emailVerified && verificationState.phoneVerified) && (
+            <div className="mb-4 flex justify-start">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onBack}
+                className="flex items-center gap-2 text-gray-700"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                {t("dualVerification.backToEditDetails")}
+              </Button>
+            </div>
+          )}
+
           <div className="flex items-center justify-center mb-4">
             <div className="p-3 bg-blue-100 rounded-full">
               <Shield className="h-8 w-8 text-blue-600" />

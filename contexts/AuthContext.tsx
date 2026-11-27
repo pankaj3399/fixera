@@ -12,6 +12,7 @@ import { PENDING_FAVORITE_KEY, LEGACY_PENDING_FAVORITE_KEY } from '@/lib/constan
 import { getMigratedItem, removeMigratedItem } from '@/lib/storageMigration'
 import { pruneAnonymizeRecoveryStorageForLogout } from '@/lib/anonymizeRecoveryStorage'
 import { resolvePostAuthRedirect } from '@/lib/auth/redirectResolver'
+import { clearAllCheckoutDrafts } from '@/lib/booking/checkoutDraft'
 import {
   getAllowedRoles,
   hasRoleAccess,
@@ -430,6 +431,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         idExpiryToastRef.current = null
       }
       sessionStorage.removeItem('redirectAfterAuth')
+      clearAllCheckoutDrafts(sessionStorage)
       // Unknown-outcome recovery records survive logout: the server list may
       // never contain a target whose request did not land, and they are the
       // only way back to its status check.
@@ -486,6 +488,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     userRef.current = user
   }, [user])
+
+  // Checkout drafts hold one customer's wizard answers: when the signed-in
+  // account changes (another login, or the session ends), none may survive.
+  const draftOwnerIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    const currentId = user?._id ?? null
+    if (draftOwnerIdRef.current && draftOwnerIdRef.current !== currentId) {
+      clearAllCheckoutDrafts(sessionStorage)
+    }
+    draftOwnerIdRef.current = currentId
+  }, [user?._id])
 
   useEffect(() => {
     let cancelled = false

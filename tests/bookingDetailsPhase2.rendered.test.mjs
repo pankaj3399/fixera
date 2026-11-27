@@ -102,3 +102,15 @@ test('activity coverage badge reflects the append-only archive', () => {
   assert.match(renderCoverage({ status: 'partial', source: 'append_only_archive', appendOnlyArchive: true }), /Recent changes were recorded/)
   assert.match(renderCoverage({ status: 'unknown', source: 'surviving_records', appendOnlyArchive: false }), /Historical coverage is unknown/)
 })
+
+test('CR: the quotation-card shortcut is shown only while the Quotation tab is available', () => {
+  const payload = fixture()
+  payload.details.viewerRole = 'customer'
+  const props = { ...payload, viewerRole: 'customer', pathname: '/bookings/x', search: '', onSelectTab() {} }
+  const shortcut = /Open quotation details/g
+  const withQuotation = render(React.createElement(OverviewPanel, props))
+  const direct = render(React.createElement(OverviewPanel, { ...props, unavailableTabs: { quotation: true } }))
+  const count = (html) => (html.match(shortcut) || []).length
+  assert.ok(count(withQuotation) >= 1, 'a booking with a quotation keeps the shortcut')
+  assert.equal(count(direct), 0, 'a direct booking shows no dead quotation shortcut')
+})

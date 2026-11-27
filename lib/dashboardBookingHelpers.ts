@@ -78,6 +78,19 @@ export function statusFilterScope(filter: string, modeStatuses: Iterable<string>
   return [filter]
 }
 
+/** Statuses the booking timeline board plans (mirrors its active set). */
+export const TIMELINE_BOOKING_STATUSES: readonly string[] = ["booked", "rescheduling_requested", "in_progress", "professional_completed", "dispute"]
+
+/**
+ * Statuses the customer timeline loads for a bookings status filter: the
+ * active timeline statuses inside the filter's scope (none for a finished-only
+ * filter such as "completed").
+ */
+export function customerTimelineStatuses(statusFilter: string): string[] {
+  const scope = new Set(statusFilterScope(statusFilter, CUSTOMER_BOOKING_STATUSES))
+  return TIMELINE_BOOKING_STATUSES.filter((status) => scope.has(status))
+}
+
 /** Customer booking statuses that are finished, not active. */
 export const CUSTOMER_CLOSED_BOOKING_STATUSES: ReadonlySet<string> = new Set(["completed", "cancelled", "refunded"])
 

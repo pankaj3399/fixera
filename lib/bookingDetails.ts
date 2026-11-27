@@ -20,6 +20,132 @@ export function resolveDetailTab(value: string | null | undefined): DetailTab {
   return DETAIL_TABS.includes(value as DetailTab) ? (value as DetailTab) : "overview";
 }
 
+type TabAvailabilityBooking = {
+  status?: string | null;
+  statusHistory?: Array<{ status?: string | null } | null | undefined> | null;
+  quote?: {
+    description?: string | null;
+    submittedAt?: string | null;
+    breakdown?: Array<{ item?: string | null } | null | undefined> | null;
+  } | null;
+  quotationNumber?: string | null;
+  quoteVersions?: unknown[] | null;
+  rfqResponse?: { action?: string | null } | null;
+  payment?: PaidEvidence | null;
+} | null | undefined;
+
+type PaidTimestamps = { authorizedAt?: string | null; capturedAt?: string | null; paidAt?: string | null };
+type PaidEvidence = PaidTimestamps & { status?: string | null; timestamps?: PaidTimestamps | null };
+
+type TabAvailabilityDetails = Pick<BookingDetailsDto, "quotation" | "payments"> | null | undefined;
+
+/** Statuses only a quotation flow (RFQ or professional quote) passes through. */
+const QUOTATION_FLOW_STATUSES = new Set(["rfq", "rfq_accepted", "draft_quote", "quoted", "quote_accepted", "quote_rejected"]);
+/**
+ * Statuses that prove a quotation existed. `quote_accepted` is excluded: the
+ * direct-checkout flow also passes through it (legacy bookings start their
+ * history with it), while a real quotation is always `quoted` first.
+ */
+const QUOTATION_EVIDENCE_STATUSES = new Set(["rfq", "rfq_accepted", "draft_quote", "quoted", "quote_rejected"]);
+/** Statuses that exist only after the booking was booked (paid/authorized). */
+const BOOKED_STATUSES = new Set([
+  "booked",
+  "rescheduling_requested",
+  "in_progress",
+  "professional_completed",
+  "completed",
+  "dispute",
+  "refunded",
+]);
+const PAID_PAYMENT_STATUSES = new Set(["authorized", "completed", "refunded", "partially_refunded", "disputed"]);
+
+/**
+ * A direct booking stores its checkout as an auto-generated quote
+ * (`checkout_snapshot:*` breakdown lines). Nobody quoted anything.
+ */
+export function isCheckoutSnapshotQuote(quote: NonNullable<TabAvailabilityBooking>["quote"]): boolean {
+  return Array.isArray(quote?.breakdown)
+    && quote.breakdown.some((line) => typeof line?.item === "string" && line.item.startsWith("checkout_snapshot:"));
+}
+
+/**
+ * True when the booking went through a quotation (RFQ request, quotation
+ * versions/number, a professional-submitted legacy quote or any quotation
+ * lifecycle status). A direct booking's checkout quote does not count.
+ */
+export function bookingHadQuotation(booking: TabAvailabilityBooking, details?: TabAvailabilityDetails): boolean {
+  const quotation = details?.quotation;
+  if ((quotation?.versions?.length ?? 0) > 0 || quotation?.quotationNumber) return true;
+  if (quotation?.status && ["draft", "quoted", "rejected"].includes(quotation.status)) return true;
+  if (!booking) return false;
+  if (booking.quotationNumber || (booking.quoteVersions?.length ?? 0) > 0) return true;
+  if (booking.rfqResponse?.action) return true;
+  if (booking.status && QUOTATION_EVIDENCE_STATUSES.has(booking.status)) return true;
+  if ((booking.statusHistory || []).some((entry) => entry?.status && QUOTATION_EVIDENCE_STATUSES.has(entry.status))) return true;
+  const quote = booking.quote;
+  return Boolean(quote && !isCheckoutSnapshotQuote(quote) && (quote.submittedAt || quote.description));
+}
+
+/**
+ * True once the booking was booked, i.e. paid (authorized or captured): a
+ * post-booking status now or in its history, or a recorded paid payment.
+ */
+export function bookingHasBeenBooked(booking: TabAvailabilityBooking, details?: TabAvailabilityDetails): boolean {
+  if (booking?.status && BOOKED_STATUSES.has(booking.status)) return true;
+  // A current pre-booking status is authoritative: the quotation is not booked.
+  if (booking?.status && (QUOTATION_FLOW_STATUSES.has(booking.status) || booking.status === "payment_pending")) return false;
+  // Otherwise (e.g. cancelled) the recorded history and payments decide.
+  if ((booking?.statusHistory || []).some((entry) => entry?.status && BOOKED_STATUSES.has(entry.status))) return true;
+  const payments: Array<PaidEvidence | null | undefined> = [booking?.payment, ...(details?.payments?.records || [])];
+  return payments.some((payment) => {
+    if (!payment) return false;
+    if (payment.status && PAID_PAYMENT_STATUSES.has(payment.status)) return true;
+    const timestamps = payment.timestamps || payment;
+    return Boolean(timestamps.authorizedAt || timestamps.capturedAt || timestamps.paidAt);
+  });
+}
+
+export type DetailTabUnavailableReason = "no_quotation" | "not_booked";
+
+/**
+ * Tabs that are shown greyed out and cannot be opened:
+ * - Quotation, when the booking never had a quotation (BPQ-1).
+ * - Booking and Payments, while a quotation has not been booked/paid (BPQ-2).
+ */
+export function unavailableDetailTabs(
+  booking: TabAvailabilityBooking,
+  details?: TabAvailabilityDetails
+): Partial<Record<DetailTab, DetailTabUnavailableReason>> {
+  const result: Partial<Record<DetailTab, DetailTabUnavailableReason>> = {};
+  if (!bookingHadQuotation(booking, details)) {
+    result.quotation = "no_quotation";
+    return result;
+  }
+  if (!bookingHasBeenBooked(booking, details)) {
+    result.booking = "not_booked";
+    result.payments = "not_booked";
+  }
+  return result;
+}
+
+const ZERO_DECIMAL_CURRENCIES = new Set([
+  "BIF", "CLP", "DJF", "GNF", "JPY", "KMF", "KRW", "MGA",
+  "PYG", "RWF", "UGX", "VND", "VUV", "XAF", "XOF", "XPF",
+]);
+
+/**
+ * The raw booking payment subdocument stores `transferAmount` exactly as sent
+ * to Stripe: minor units (cents) of `transferCurrency`. Convert before
+ * displaying it as money.
+ */
+export function transferAmountFromMinorUnits(amount: unknown, currency: string | null | undefined): number | null {
+  if (amount === null || amount === undefined || amount === "") return null;
+  const value = Number(amount);
+  if (!Number.isFinite(value)) return null;
+  if (ZERO_DECIMAL_CURRENCIES.has(String(currency || "EUR").toUpperCase())) return value;
+  return Math.round(value) / 100;
+}
+
 /**
  * Add/replace only `tab` in the existing query string, preserving every action
  * flag and the current hash unless an explicit anchor is requested.

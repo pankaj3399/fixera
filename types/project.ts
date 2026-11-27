@@ -43,6 +43,8 @@ export interface ProjectMaterial {
 }
 
 export interface ProjectSubproject {
+  /** Server id of the package (a stable identity across edits that keep it). */
+  _id?: string
   name: string
   description: string
   pricing: ProjectSubprojectPricing

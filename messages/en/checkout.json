@@ -109,7 +109,6 @@
     "vatLine": "VAT ({rate}%):",
     "reverseCharge": "Reverse Charge — VAT is accounted for by the customer.",
     "total": "Total:",
-    "chargeCurrencyNote": "You'll be charged in {currency}.",
     "enterPaymentDetails": "Enter Payment Details",
     "paymentAlreadyCompleted": "Payment already completed",
     "redirectingToConfirmation": "Redirecting to confirmation page...",
@@ -127,7 +126,9 @@
       "paymentInfoInitFailed": "Payment information could not be initialized automatically. Please contact support or retry later.",
       "loadPaymentDetailsFailed": "Failed to load payment details",
       "paymentConfirmFailed": "Payment confirmation failed",
-      "confirmPaymentFailed": "Failed to confirm payment"
+      "confirmPaymentFailed": "Failed to confirm payment",
+      "slotUnavailable": "The selected time slot was booked before your payment completed. Your payment has been refunded in full.",
+      "backToWizardFailed": "We couldn't return to the booking wizard. Please try again."
     },
     "preparationValue": "Preparation: {duration}",
     "executionValue": "Execution: {duration}",
@@ -151,7 +152,11 @@
       "notApplied": "These points could not be applied to this payment.",
       "unableToApply": "We couldn't apply your points. Please try again.",
       "unableToRemove": "We couldn't remove your points. Please try again."
-    }
+    },
+    "backToWizard": "Back to booking wizard",
+    "slotUnavailableTitle": "This time slot is no longer available",
+    "chooseAnotherDate": "Choose another date",
+    "chargeAmountNote": "Amounts are converted for display. You'll be charged {amount} in {currency}."
   },
   "paymentSuccess": {
     "paymentSuccessful": "Payment successful",

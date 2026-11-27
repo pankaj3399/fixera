@@ -342,7 +342,8 @@
     },
     "currentPreviewNote": "Current payment preview using today's checkout pricing. The recorded quotation is in the Quotation tab.",
     "viewingPinnedVersion": "Viewing pinned version v{version}. Accept & Pay always uses the current valid version.",
-    "backToCurrentVersion": "Back to current version"
+    "backToCurrentVersion": "Back to current version",
+    "chargedInNote": "Converted for display. Charged in {currency}: {amount}."
   },
   "loyalty": {
     "member": "{level} Member",
@@ -716,7 +717,9 @@
       "quotation": "Quotation",
       "payments": "Payments",
       "activity": "Activity",
-      "bookingRfq": "Quotation request"
+      "bookingRfq": "Quotation request",
+      "unavailableNoQuotation": "This booking has no quotation.",
+      "unavailableNotBooked": "Available once the quotation has been booked and paid."
     },
     "fields": {
       "unknown": "Unknown",
@@ -912,6 +915,7 @@
       "scheduleLocationTitle": "Booking schedule & service address",
       "scheduleLocationNote": "Values captured with the booking or quotation when available.",
       "rfqTitle": "Request (RFQ) wizard data",
+      "wizardTitle": "Booking wizard data",
       "rfqDescription": "Every stored question and answer, including files and unanswered questions.",
       "requestDescription": "Request description",
       "additionalNotes": "Additional notes",

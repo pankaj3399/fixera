@@ -7,6 +7,12 @@ import { Label } from "@/components/ui/label";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { useGoogleMaps } from "@/hooks/useGoogleMaps";
 import { DROPDOWN_SELECTION_GRACE_MS, shouldSkipBlurCommit } from "@/lib/address/blurCommitGuard";
+import { usePlacesAutocomplete } from "@/hooks/usePlacesAutocomplete";
+
+const ADDRESS_AUTOCOMPLETE_OPTIONS = {
+  types: ['address'],
+  fields: ['formatted_address', 'geometry', 'address_components'],
+};
 
 export interface PlaceData {
   formatted_address: string;
@@ -42,7 +48,6 @@ export default function AddressAutocomplete({
   const selectedFromDropdownRef = useRef(false);
   const validatedAddressRef = useRef<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   // Monotonic versions: a blur must never overwrite a newer dropdown selection.
   const inputVersionRef = useRef(0);
   const selectionVersionRef = useRef(0);
@@ -74,70 +79,41 @@ export default function AddressAutocomplete({
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
   useEffect(() => { onValidationRef.current = onValidation; }, [onValidation]);
 
-  // Initialize autocomplete
-  useEffect(() => {
-    if (!isLoaded || !inputRef.current || useCompanyAddress) {
-      return;
-    }
-
-    autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, {
-      types: ['address'],
-      fields: ['formatted_address', 'geometry', 'address_components']
-    });
-
-    autocompleteRef.current.addListener('place_changed', () => {
-      const place = autocompleteRef.current?.getPlace();
-        if (place?.formatted_address) {
-          let coordinates: { lat: number; lng: number } | undefined;
-          if (place.geometry?.location) {
-            const location = place.geometry.location;
-            const resolveCoordinate = (
-              value: number | (() => number) | undefined
-            ): number | undefined => {
-              if (typeof value === 'function') {
-                return value();
-              }
-              if (typeof value === 'number') {
-                return value;
-              }
-              return undefined;
-            };
-
-            const latValue = resolveCoordinate(location.lat);
-            const lngValue = resolveCoordinate(location.lng);
-
-            if (latValue !== undefined && lngValue !== undefined) {
-              coordinates = {
-                lat: latValue,
-                lng: lngValue
-              };
-            }
-          }
-
-          const placeData: PlaceData = {
-            formatted_address: place.formatted_address,
-            coordinates,
-            address_components: place.address_components
-          };
-
-        // Call onChange with both parameters (second parameter is optional for backward compatibility)
-        onChangeRef.current(place.formatted_address, placeData);
-        selectedFromDropdownRef.current = true;
-        validatedAddressRef.current = place.formatted_address;
-        selectionVersionRef.current = inputVersionRef.current + 1;
-        inputVersionRef.current = selectionVersionRef.current;
-        dropdownPointerDownRef.current = false;
-        setIsValid(true);
-        onValidationRef.current(true);
+  // One widget per input for the life of the field (FT2-6A): see
+  // lib/address/placesAutocomplete.ts. place_changed is the single writer of
+  // onChange(placeData) for dropdown selections.
+  usePlacesAutocomplete(inputRef, {
+    enabled: isLoaded && !useCompanyAddress,
+    options: ADDRESS_AUTOCOMPLETE_OPTIONS,
+    onPlaceChanged: (place) => {
+      if (!place.formatted_address) return
+      let coordinates: { lat: number; lng: number } | undefined;
+      const location = place.geometry?.location;
+      if (location) {
+        const latValue = typeof location.lat === 'function' ? location.lat() : location.lat;
+        const lngValue = typeof location.lng === 'function' ? location.lng() : location.lng;
+        if (typeof latValue === 'number' && typeof lngValue === 'number') {
+          coordinates = { lat: latValue, lng: lngValue };
+        }
       }
-    });
 
-    return () => {
-      if (autocompleteRef.current) {
-        google.maps.event.clearInstanceListeners(autocompleteRef.current);
-      }
-    };
-  }, [isLoaded, useCompanyAddress]);
+      const placeData: PlaceData = {
+        formatted_address: place.formatted_address,
+        coordinates,
+        address_components: place.address_components
+      };
+
+      onChangeRef.current(place.formatted_address, placeData);
+      selectedFromDropdownRef.current = true;
+      validatedAddressRef.current = place.formatted_address;
+      selectionVersionRef.current = inputVersionRef.current + 1;
+      inputVersionRef.current = selectionVersionRef.current;
+      dropdownPointerDownRef.current = false;
+      setValidating(false);
+      setIsValid(true);
+      onValidationRef.current(true);
+    },
+  });
 
   // Validate on blur - only for manually typed addresses
   const handleBlur = async () => {
@@ -272,32 +248,38 @@ export default function AddressAutocomplete({
     return () => document.removeEventListener('mousedown', onPointerDown, true);
   }, [useCompanyAddress]);
 
-  // Initialize: If value already exists on mount and hasn't been validated yet, validate it
+  // Initialize: validate a pre-filled value (profile/company/draft) once.
+  // Only a value the user did not type counts: this used to fire on the first
+  // keystroke, and its late "invalid" result for a one-letter string could
+  // land after a dropdown selection and reject it (FT2-6A).
   useEffect(() => {
-    if (!hasInitialized.current && value && !validatedAddressRef.current) {
+    if (hasInitialized.current || !value || validatedAddressRef.current) return;
+    if (inputVersionRef.current !== 0) {
       hasInitialized.current = true;
-      console.log('🔄 Initial address validation on mount:', value);
-      // Validate the initial address
-      (async () => {
-        setValidating(true);
-        const valid = await validateAddress(value);
-        console.log('📍 Initial validation result:', valid);
-        if (valid) {
-          validatedAddressRef.current = value;
-          selectedFromDropdownRef.current = true; // Treat pre-filled address as valid
-        }
-        setIsValid(valid);
-        onValidation(valid);
-        setValidating(false);
-      })();
+      return;
     }
+    hasInitialized.current = true;
+    const versionAtStart = inputVersionRef.current;
+    (async () => {
+      setValidating(true);
+      const valid = await validateAddress(value);
+      if (inputVersionRef.current !== versionAtStart) {
+        setValidating(false);
+        return;
+      }
+      if (valid) {
+        validatedAddressRef.current = value;
+        selectedFromDropdownRef.current = true; // Treat pre-filled address as valid
+      }
+      setIsValid(valid);
+      onValidation(valid);
+      setValidating(false);
+    })();
   }, [value, validateAddress, onValidation]);
 
   // Watch for value changes from parent and preserve validation if it's the same validated address
   useEffect(() => {
-    console.log('📝 Value changed from parent:', value, 'validated:', validatedAddressRef.current);
     if (value && validatedAddressRef.current === value && selectedFromDropdownRef.current) {
-      console.log('✅ Value matches validated address - keeping it valid');
       // Don't let it go back to invalid
       if (isValid !== true) {
         setIsValid(true);

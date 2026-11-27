@@ -109,7 +109,6 @@
     "vatLine": "TVA ({rate} %) :",
     "reverseCharge": "Autoliquidation — la TVA est due par le client.",
     "total": "Total :",
-    "chargeCurrencyNote": "Votre paiement sera effectué en {currency}.",
     "enterPaymentDetails": "Saisissez vos coordonnées de paiement",
     "paymentAlreadyCompleted": "Paiement déjà effectué",
     "redirectingToConfirmation": "Redirection vers la page de confirmation...",
@@ -127,7 +126,9 @@
       "paymentInfoInitFailed": "Les informations de paiement n'ont pas pu être chargées automatiquement. Contactez le support ou réessayez plus tard.",
       "loadPaymentDetailsFailed": "Impossible de charger les détails du paiement",
       "paymentConfirmFailed": "La confirmation du paiement a échoué",
-      "confirmPaymentFailed": "Impossible de confirmer le paiement"
+      "confirmPaymentFailed": "Impossible de confirmer le paiement",
+      "slotUnavailable": "Le créneau choisi a été réservé avant la fin de votre paiement. Votre paiement a été intégralement remboursé.",
+      "backToWizardFailed": "Impossible de revenir à l'assistant de réservation. Veuillez réessayer."
     },
     "preparationValue": "Préparation : {duration}",
     "executionValue": "Exécution : {duration}",
@@ -151,7 +152,11 @@
       "notApplied": "Ces points n'ont pas pu être appliqués à ce paiement.",
       "unableToApply": "Nous n'avons pas pu appliquer vos points. Veuillez réessayer.",
       "unableToRemove": "Nous n'avons pas pu retirer vos points. Veuillez réessayer."
-    }
+    },
+    "backToWizard": "Retour à l'assistant de réservation",
+    "slotUnavailableTitle": "Ce créneau n'est plus disponible",
+    "chooseAnotherDate": "Choisir une autre date",
+    "chargeAmountNote": "Les montants sont convertis à titre indicatif. Vous serez débité de {amount} en {currency}."
   },
   "paymentSuccess": {
     "paymentSuccessful": "Paiement réussi",

@@ -23,6 +23,7 @@ import {
   resolvePanelHourMode,
 } from "@/lib/bookingDetails"
 import type { BookingDetailsDto, RawBookingRecord, DetailViewerRole } from "@/types/bookingDetails"
+import type { DetailTab, DetailTabUnavailableReason } from "@/lib/bookingDetails"
 import { AdminReferencesCard } from "./AdminReferencesCard"
 import {
   DetailCard,
@@ -46,6 +47,8 @@ interface OverviewPanelProps {
   pathname: string
   search: string
   onSelectTab: (tab: "booking" | "quotation" | "payments" | "activity", hash?: string) => void
+  /** Tabs that are greyed out (BPQ-1/BPQ-2); their shortcuts are not offered. */
+  unavailableTabs?: Partial<Record<DetailTab, DetailTabUnavailableReason>>
 }
 
 const DETAIL_STATUS_STYLES: Record<string, string> = {
@@ -75,7 +78,9 @@ export function OverviewPanel({
   pathname,
   search,
   onSelectTab,
+  unavailableTabs,
 }: OverviewPanelProps) {
+  const tabAvailable = (tab: DetailTab) => !unavailableTabs?.[tab]
   const t = useTranslations("bookings")
   const dt = useDetailT()
   const { formatMoney } = useCurrency()
@@ -458,18 +463,20 @@ export function OverviewPanel({
               {formatCalendarDate(validUntil, intl) || validUntil}
             </DetailField>
           </dl>
-          <div className="flex flex-wrap gap-2 pt-1">
-            <a
-              href={quoteAnchors.version}
-              className="rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
-              onClick={(event) => {
-                event.preventDefault()
-                onSelectTab("quotation", quoteAnchors.version.includes("#") ? `#${quoteAnchors.version.split("#")[1]}` : "#quotation")
-              }}
-            >
-              {dt("overview.openQuotation", "Open quotation details")}
-            </a>
-          </div>
+          {tabAvailable("quotation") && (
+            <div className="flex flex-wrap gap-2 pt-1">
+              <a
+                href={quoteAnchors.version}
+                className="rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+                onClick={(event) => {
+                  event.preventDefault()
+                  onSelectTab("quotation", quoteAnchors.version.includes("#") ? `#${quoteAnchors.version.split("#")[1]}` : "#quotation")
+                }}
+              >
+                {dt("overview.openQuotation", "Open quotation details")}
+              </a>
+            </div>
+          )}
         </DetailCard>
 
         <DetailCard
@@ -506,13 +513,15 @@ export function OverviewPanel({
             <DetailField label={dt("fields.currency", "Currency")} empty={!currency}>{currency}</DetailField>
           </dl>
           <div className="flex flex-wrap gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => onSelectTab("payments")}
-              className="rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
-            >
-              {dt("overview.openPayments", "Open payment records")}
-            </button>
+            {tabAvailable("payments") ? (
+              <button
+                type="button"
+                onClick={() => onSelectTab("payments")}
+                className="rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+              >
+                {dt("overview.openPayments", "Open payment records")}
+              </button>
+            ) : null}
           </div>
         </DetailCard>
 
@@ -678,7 +687,7 @@ export function OverviewPanel({
               <DetailField label={dt("fields.category", "Category")} empty={!liveProject.category}>{liveProject.category}</DetailField>
               <DetailField label={dt("fields.service", "Service")} empty={!liveProject.service}>{liveProject.service}</DetailField>
             </dl>
-            {booking.project?._id ? (
+            {booking.project?._id && tabAvailable("booking") ? (
               <button
                 type="button"
                 onClick={() => onSelectTab("booking")}
@@ -695,27 +704,33 @@ export function OverviewPanel({
       <AdminReferencesCard links={visibleAdminLinks} />
 
       <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => onSelectTab("booking")}
-          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-        >
-          {dt("overview.openBookingData", "Booking data")}
-        </button>
-        <button
-          type="button"
-          onClick={() => onSelectTab("quotation")}
-          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-        >
-          {dt("tabs.quotation", "Quotation")}
-        </button>
-        <button
-          type="button"
-          onClick={() => onSelectTab("payments")}
-          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-        >
-          {dt("tabs.payments", "Payments")}
-        </button>
+        {tabAvailable("booking") ? (
+          <button
+            type="button"
+            onClick={() => onSelectTab("booking")}
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            {dt("overview.openBookingData", "Booking data")}
+          </button>
+        ) : null}
+        {tabAvailable("quotation") ? (
+          <button
+            type="button"
+            onClick={() => onSelectTab("quotation")}
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            {dt("tabs.quotation", "Quotation")}
+          </button>
+        ) : null}
+        {tabAvailable("payments") ? (
+          <button
+            type="button"
+            onClick={() => onSelectTab("payments")}
+            className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            {dt("tabs.payments", "Payments")}
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => onSelectTab("activity")}

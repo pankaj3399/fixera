@@ -34,7 +34,19 @@ import { toast } from 'sonner';
 import Link from 'next/link';
 import { logError } from '@/lib/logger';
 import { useAuth } from '@/contexts/AuthContext';
-import DualVerificationComponent from '@/components/DualVerificationComponent';
+import DualVerificationComponent from '@/components/DualVerificationComponent'
+import {
+  contactSaveMessageKey,
+  contactSaveOutcome,
+  fetchSignupDetails,
+  freshResendDeadlines,
+  resendDeadlinesAfterSave,
+  splitSignupPhone,
+  updateSignupDetails,
+  type SignupDetails,
+  type SignupResendDeadlines,
+} from '@/lib/auth/signupContact';
+import { otpResendDeadline } from '@/lib/auth/signupOtpCooldown';
 import {
   validateVATFormat,
   validateVATWithAPI,
@@ -132,6 +144,15 @@ function CustomerSignupForm() {
   const [currentStep, setCurrentStep] = useState<'form' | 'verification'>(
     'form'
   );
+  // FT2-6C: the code step's per-channel resend cooldowns. Kept here so they
+  // survive going back to the form; signup starts both, an edit restarts
+  // only the changed channel's.
+  const [resendDeadlines, setResendDeadlines] = useState<SignupResendDeadlines>({ email: null, phone: null });
+  // Edit mode: the form updates the existing, not yet verified account
+  // (loaded from the server) instead of creating one.
+  const [editDetails, setEditDetails] = useState<SignupDetails | null>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [verified, setVerified] = useState({ email: false, phone: false });
   const [formData, setFormData] = useState<FormData>({
     name: '',
     email: '',
@@ -158,9 +179,10 @@ function CustomerSignupForm() {
   const [referralReferrer, setReferralReferrer] = useState<string>('');
   // Bumped whenever location fields change so in-flight geocode results are ignored
   const geocodeRequestIdRef = useRef(0);
-  const { signup } = useAuth();
+  const { signup, checkAuth } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const editMode = editDetails !== null;
 
   // Pre-fill referral code from URL query param
   useEffect(() => {
@@ -310,6 +332,59 @@ function CustomerSignupForm() {
       };
     });
   };
+
+  // Back from the code step: the signup form again, prefilled with what the
+  // server holds for this account. The password stays blank (= keep).
+  const openEditForm = async () => {
+    setLoadingDetails(true);
+    try {
+      const details = await fetchSignupDetails();
+      const { countryCode, national } = splitSignupPhone(details.phone, formData.countryCode);
+      const location = details.location;
+      const hasCoordinates = typeof location?.latitude === 'number' && typeof location?.longitude === 'number';
+      invalidateResolvedCoordinates();
+      setFormData((prev) => ({
+        ...prev,
+        name: details.name,
+        email: details.email,
+        countryCode,
+        phone: national,
+        password: '',
+        confirmPassword: '',
+        customerType: details.customerType === 'business' ? 'business' : 'individual',
+        companyName: details.companyName,
+        vatNumber: details.vatNumber,
+        address: location?.address ?? '',
+        city: location?.city ?? '',
+        country: location?.country ?? '',
+        postalCode: location?.postalCode ?? '',
+        latitude: hasCoordinates ? (location?.latitude as number) : undefined,
+        longitude: hasCoordinates ? (location?.longitude as number) : undefined,
+        // Stored coordinates belong to the stored address: no re-geocode unless it changes.
+        resolvedLocationKey: hasCoordinates && location ? normalizeLocationKey(location) : undefined,
+        marketingOptIn: details.marketingOptIn,
+      }));
+      setIsAddressValid(Boolean(location?.address));
+      setVatValidation({});
+      setVerified({ email: details.isEmailVerified, phone: details.isPhoneVerified });
+      setEditDetails(details);
+      setCurrentStep('form');
+      return true;
+    } catch (error) {
+      toast.error(getErrorText(error, t('signupEdit.loadFailed')));
+      return false;
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  // /signup/customer?edit=1: open the form for the signed-in, unverified account.
+  const editRequested = searchParams.get('edit') === '1';
+  useEffect(() => {
+    if (editRequested) void openEditForm();
+    // Runs once per request; openEditForm only reads stable setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editRequested]);
 
   // Auto-populate business info from VAT validation
   useEffect(() => {
@@ -490,7 +565,8 @@ function CustomerSignupForm() {
       return false;
     }
 
-    if (formData.password.length < 6) {
+    // In edit mode a blank password keeps the current one.
+    if ((!editMode || formData.password || formData.confirmPassword) && formData.password.length < 6) {
       toast.error(t('validation.passwordTooShort'));
       return false;
     }
@@ -594,6 +670,46 @@ function CustomerSignupForm() {
     const validatedLocation = await validateForm();
     if (!validatedLocation) return;
 
+    if (editMode) {
+      setLoading(true);
+      try {
+        const update = await updateSignupDetails({
+          name: formData.name.trim(),
+          email: formData.email.trim().toLowerCase(),
+          phone: formData.countryCode + formData.phone.trim(),
+          password: formData.password,
+          customerType: formData.customerType,
+          address: formData.address.trim(),
+          city: formData.city.trim(),
+          country: formData.country.trim(),
+          postalCode: formData.postalCode.trim(),
+          latitude: validatedLocation.latitude,
+          longitude: validatedLocation.longitude,
+          ...(formData.customerType === 'business' && {
+            companyName: formData.companyName.trim(),
+            vatNumber: formatVATNumber(formData.vatNumber),
+          }),
+          marketingOptIn: formData.marketingOptIn,
+        });
+        const outcome = contactSaveOutcome(update);
+        const message = t(`dualVerification.changeContact.${contactSaveMessageKey(outcome)}`);
+        if (outcome === 'sent' || outcome === 'unchanged') toast.success(message);
+        else toast.warning(message);
+        setResendDeadlines((prev) => resendDeadlinesAfterSave(update, prev, otpResendDeadline));
+        setVerified({ email: update.isEmailVerified, phone: update.isPhoneVerified });
+        const { countryCode, national } = splitSignupPhone(update.phone, formData.countryCode);
+        setFormData((prev) => ({ ...prev, email: update.email, countryCode, phone: national, password: '', confirmPassword: '' }));
+        setEditDetails(null);
+        setCurrentStep('verification');
+        void checkAuth();
+      } catch (error) {
+        toast.error(getErrorText(error, t('dualVerification.changeContact.failed')));
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     setLoading(true);
     try {
       const trimmedReferralCode = formData.referralCode.trim();
@@ -629,6 +745,8 @@ function CustomerSignupForm() {
 
       if (success) {
         toast.success(t('customerSignup.accountCreated'));
+        setResendDeadlines(freshResendDeadlines(otpResendDeadline));
+        setVerified({ email: false, phone: false });
         setCurrentStep('verification');
       }
     } catch (error) {
@@ -650,24 +768,49 @@ function CustomerSignupForm() {
         email={formData.email}
         phone={formData.countryCode + formData.phone}
         onVerificationSuccess={handleVerificationSuccess}
-        onBack={() => setCurrentStep('form')}
+        onBack={() => { if (!loadingDetails) void openEditForm(); }}
+        resendDeadlines={resendDeadlines}
+        onResendDeadlinesChange={setResendDeadlines}
+        initialVerified={verified}
       />
+    );
+  }
+
+  if (editRequested && loadingDetails && !editMode) {
+    return (
+      <div className='min-h-screen flex items-center justify-center gap-2 text-gray-600'>
+        <Loader2 className='h-5 w-5 animate-spin' />
+        {t('signupEdit.loading')}
+      </div>
     );
   }
 
   return (
     <div className='min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center p-4 py-12'>
       <div className='w-full max-w-2xl'>
-        <Link href='/'>
+        {editMode ? (
           <Button
+            type='button'
             variant='ghost'
             size='sm'
-            className='absolute top-6 left-6 flex items-center gap-2 text-gray-600 hover:text-gray-900'
+            onClick={() => { setEditDetails(null); setCurrentStep('verification'); }}
+            className='mb-4 flex items-center gap-2 text-gray-600 hover:text-gray-900'
           >
             <ArrowLeft className='h-4 w-4' />
-            {t('shared.backToHome')}
+            {t('signupEdit.backToCodes')}
           </Button>
-        </Link>
+        ) : (
+          <Link href='/'>
+            <Button
+              variant='ghost'
+              size='sm'
+              className='absolute top-6 left-6 flex items-center gap-2 text-gray-600 hover:text-gray-900'
+            >
+              <ArrowLeft className='h-4 w-4' />
+              {t('shared.backToHome')}
+            </Button>
+          </Link>
+        )}
 
         <Card className='shadow-xl border-0'>
           <CardHeader className='text-center pb-6'>
@@ -677,10 +820,10 @@ function CustomerSignupForm() {
               </div>
             </div>
             <CardTitle className='text-2xl font-bold text-gray-900'>
-              {t('customerSignup.title')}
+              {editMode ? t('signupEdit.title') : t('customerSignup.title')}
             </CardTitle>
             <CardDescription className='text-gray-600'>
-              {t('customerSignup.description')}
+              {editMode ? t('signupEdit.description') : t('customerSignup.description')}
             </CardDescription>
           </CardHeader>
 
@@ -781,9 +924,13 @@ function CustomerSignupForm() {
                         handleInputChange('email', e.target.value)
                       }
                       className='pl-10'
+                      disabled={editMode && verified.email}
                       required
                     />
                   </div>
+                  {editMode && verified.email && (
+                    <p className='text-xs text-gray-500'>{t('signupEdit.verifiedLocked')}</p>
+                  )}
                 </div>
 
                 {/* Phone */}
@@ -795,6 +942,7 @@ function CustomerSignupForm() {
                       onValueChange={(value) =>
                         handleInputChange('countryCode', value)
                       }
+                      disabled={editMode && verified.phone}
                     />
                     <div className='relative flex-1'>
                       <Phone className='absolute left-3 top-3 h-4 w-4 text-gray-400' />
@@ -807,10 +955,14 @@ function CustomerSignupForm() {
                           handleInputChange('phone', e.target.value)
                         }
                         className='pl-10'
+                        disabled={editMode && verified.phone}
                         required
                       />
                     </div>
                   </div>
+                  {editMode && verified.phone && (
+                    <p className='text-xs text-gray-500'>{t('signupEdit.verifiedLocked')}</p>
+                  )}
                 </div>
 
                 {/* Password */}
@@ -821,15 +973,18 @@ function CustomerSignupForm() {
                     <Input
                       id='password'
                       type='password'
-                      placeholder={t('shared.createPasswordPlaceholder')}
+                      placeholder={editMode ? t('signupEdit.passwordKeepPlaceholder') : t('shared.createPasswordPlaceholder')}
                       value={formData.password}
                       onChange={(e) =>
                         handleInputChange('password', e.target.value)
                       }
                       className='pl-10'
-                      required
+                      required={!editMode}
                     />
                   </div>
+                  {editMode && (
+                    <p className='text-xs text-gray-500'>{t('signupEdit.passwordOptionalHint')}</p>
+                  )}
                 </div>
 
                 {/* Confirm Password */}
@@ -846,7 +1001,7 @@ function CustomerSignupForm() {
                         handleInputChange('confirmPassword', e.target.value)
                       }
                       className='pl-10'
-                      required
+                      required={!editMode}
                     />
                   </div>
                 </div>
@@ -1051,7 +1206,8 @@ function CustomerSignupForm() {
                 </div>
               </div>
 
-              {/* Referral Code */}
+              {/* Referral Code (applied when the account was created; not editable afterwards) */}
+              {!editMode && (
               <div className='space-y-2'>
                 <Label htmlFor='referralCode'>{t('shared.referralCode')}</Label>
                 <div className='relative'>
@@ -1080,13 +1236,14 @@ function CustomerSignupForm() {
                   </p>
                 )}
               </div>
+              )}
 
               {/* Marketing opt-in (explicit, unchecked by default) */}
               <label className='flex items-start gap-2.5 rounded-lg border border-gray-200 p-3 cursor-pointer'>
                 <input
                   id='marketingOptIn'
                   type='checkbox'
-                  disabled={loading || addressValidating}
+                  disabled={loading || addressValidating || (editMode && !editDetails?.marketingOptInEditable)}
                   checked={formData.marketingOptIn}
                   onChange={(e) =>
                     setFormData((prev) => ({
@@ -1098,6 +1255,9 @@ function CustomerSignupForm() {
                 />
                 <span className='text-xs text-gray-600 leading-relaxed'>
                   {t('shared.marketingOptIn')}
+                  {editMode && !editDetails?.marketingOptInEditable && (
+                    <span className='mt-1 block text-gray-500'>{t('signupEdit.marketingLocked')}</span>
+                  )}
                 </span>
               </label>
 
@@ -1111,7 +1271,7 @@ function CustomerSignupForm() {
                 {loading ? (
                   <>
                     <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                    {t('customerSignup.creatingAccount')}
+                    {editMode ? t('signupEdit.saving') : t('customerSignup.creatingAccount')}
                   </>
                 ) : addressValidating ? (
                   <>
@@ -1119,11 +1279,13 @@ function CustomerSignupForm() {
                     {t('customerSignup.validatingAddress')}
                   </>
                 ) : (
-                  t('register.createAccount')
+                  editMode ? t('signupEdit.save') : t('register.createAccount')
                 )}
               </Button>
             </form>
 
+            {!editMode && (
+            <>
             <div className='mt-6 text-center text-sm text-gray-600'>
               {t('shared.alreadyHaveAccount')}{' '}
               <Link
@@ -1143,6 +1305,8 @@ function CustomerSignupForm() {
                 {t('customerSignup.registerAsProfessional')}
               </Link>
             </div>
+            </>
+            )}
           </CardContent>
         </Card>
       </div>

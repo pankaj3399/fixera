@@ -1584,33 +1584,36 @@ export default function DashboardPage() {
   if (user?.role === 'professional') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <div className="max-w-6xl mx-auto pt-20">
-          <div className="mb-8 flex items-center justify-between">
+        {/* FT2-9: compact layout so the overview fits one laptop screen. */}
+        <div className="max-w-6xl mx-auto pt-2">
+          <div className="mb-4 flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-                <Briefcase className="h-8 w-8 text-blue-600" />
-                {t("professional.title")}
+              <h1 className="text-2xl font-bold text-gray-900 flex flex-wrap items-baseline gap-x-3">
+                <span className="flex items-center gap-2 self-center">
+                  <Briefcase className="h-6 w-6 text-blue-600" />
+                  {t("professional.title")}
+                </span>
+                <span className="text-sm font-normal text-gray-600">{t("professional.welcome", { name: user?.name ?? "" })}</span>
               </h1>
-              <p className="text-gray-600">{t("professional.welcome", { name: user?.name ?? "" })}</p>
             </div>
           </div>
 
-          <div className="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <Card className="bg-white/80 backdrop-blur border border-amber-100 shadow-sm">
-              <CardHeader className="pb-2">
+          <div className="mb-3 grid gap-3 md:grid-cols-3">
+            <Card className="gap-2 py-4 bg-white/80 backdrop-blur border border-amber-100 shadow-sm">
+              <CardHeader className="px-4">
                 <CardTitle className="flex items-center gap-2 text-amber-900 text-base">
                   <Clock className="h-5 w-5 text-amber-500" />
                   {t("professional.summary.pendingBookings")}
                 </CardTitle>
-                <CardDescription>{t("professional.summary.pendingBookingsHint")}</CardDescription>
+                <CardDescription className="text-xs">{t("professional.summary.pendingBookingsHint")}</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4">
                 {paymentSummaryLoading ? (
                   <Skeleton className="h-8 w-16" />
                 ) : (
-                  <>
-                    <p className="text-3xl font-semibold text-amber-900">{paymentSummary?.pendingBookings ?? "—"}</p>
-                    <p className="mt-1 text-sm text-amber-700">
+                  <div className="flex flex-wrap items-baseline gap-x-3">
+                    <p className="text-2xl font-semibold text-amber-900">{paymentSummary?.pendingBookings ?? "—"}</p>
+                    <p className="text-sm text-amber-700">
                       {t("professional.summary.pendingEarnings")}:{" "}
                       {paymentSummary && paymentSummary.pendingEarnings != null
                         ? formatMoney(paymentSummary.pendingEarnings, paymentSummary.currency === "MULTI" ? undefined : paymentSummary.currency)
@@ -1618,27 +1621,27 @@ export default function DashboardPage() {
                           ? paymentSummary.totalsByCurrency.map((bucket) => formatMoney(bucket.pendingEarnings, bucket.currency)).join(" + ")
                           : "—"}
                     </p>
-                  </>
+                  </div>
                 )}
                 {paymentSummaryError && <p role="alert" className="mt-1 text-xs text-rose-600">{paymentSummaryError}</p>}
               </CardContent>
             </Card>
 
-            <Card className="bg-white/80 backdrop-blur border border-emerald-100 shadow-sm">
-              <CardHeader className="pb-2">
+            <Card className="gap-2 py-4 bg-white/80 backdrop-blur border border-emerald-100 shadow-sm">
+              <CardHeader className="px-4">
                 <CardTitle className="flex items-center gap-2 text-emerald-900 text-base">
                   <CheckCircle className="h-5 w-5 text-emerald-500" />
                   {t("professional.summary.finishedBookings")}
                 </CardTitle>
-                <CardDescription>{t("professional.summary.finishedBookingsHint")}</CardDescription>
+                <CardDescription className="text-xs">{t("professional.summary.finishedBookingsHint")}</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4">
                 {paymentSummaryLoading ? (
                   <Skeleton className="h-8 w-16" />
                 ) : (
-                  <>
-                    <p className="text-3xl font-semibold text-emerald-900">{paymentSummary?.completedBookings ?? "—"}</p>
-                    <p className="mt-1 text-sm text-emerald-700">
+                  <div className="flex flex-wrap items-baseline gap-x-3">
+                    <p className="text-2xl font-semibold text-emerald-900">{paymentSummary?.completedBookings ?? "—"}</p>
+                    <p className="text-sm text-emerald-700">
                       {t("professional.summary.earnings")}:{" "}
                       {paymentSummary && paymentSummary.totalEarnings != null
                         ? formatMoney(paymentSummary.totalEarnings, paymentSummary.currency === "MULTI" ? undefined : paymentSummary.currency)
@@ -1646,43 +1649,46 @@ export default function DashboardPage() {
                           ? paymentSummary.totalsByCurrency.map((bucket) => formatMoney(bucket.totalEarnings, bucket.currency)).join(" + ")
                           : "—"}
                     </p>
-                  </>
+                  </div>
                 )}
               </CardContent>
             </Card>
 
-            <Card className="bg-white/80 backdrop-blur border border-yellow-100 shadow-sm">
-              <CardHeader className="pb-2">
+            <Card className="gap-2 py-4 bg-white/80 backdrop-blur border border-yellow-100 shadow-sm">
+              <CardHeader className="px-4">
                 <CardTitle className="flex items-center gap-2 text-yellow-900 text-base">
                   <Star className="h-5 w-5 text-yellow-500" />
                   {t("professional.summary.reviews")}
                 </CardTitle>
-                <CardDescription>{t("professional.summary.reviewsHint")}</CardDescription>
+                <CardDescription className="text-xs">{t("professional.summary.reviewsHint")}</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="px-4">
                 {paymentSummaryLoading ? (
                   <Skeleton className="h-8 w-16" />
                 ) : !paymentSummary ? (
                   // The summary failed to load: unknown, not "no reviews".
-                  <p className="text-3xl font-semibold text-yellow-900">—</p>
+                  <p className="text-2xl font-semibold text-yellow-900">—</p>
                 ) : paymentSummary.avgRating != null ? (
-                  <>
-                    <p className="text-3xl font-semibold text-yellow-900">{paymentSummary.avgRating.toFixed(1)}</p>
-                    <p className="mt-1 text-sm text-yellow-700">
+                  <div className="flex flex-wrap items-baseline gap-x-3">
+                    <p className="text-2xl font-semibold text-yellow-900">{paymentSummary.avgRating.toFixed(1)}</p>
+                    <p className="text-sm text-yellow-700">
                       {t("professional.summary.reviewsCount", { count: paymentSummary.reviewCount })}
                     </p>
-                  </>
+                  </div>
                 ) : (
                   <p className="text-sm text-gray-500">{t("professional.summary.noReviews")}</p>
                 )}
               </CardContent>
             </Card>
 
-            <BenefitsProgramCard />
-            <FavoritesWidget />
           </div>
 
-          <Tabs defaultValue="quick_actions" className="space-y-6">
+          <div className="mb-3 grid gap-3 lg:grid-cols-2">
+            <BenefitsProgramCard compact />
+            <FavoritesWidget className="gap-3 py-4" />
+          </div>
+
+          <Tabs defaultValue="quick_actions" className="space-y-3">
             <TabsList className="inline-flex h-auto min-w-full w-max rounded-md bg-muted p-1">
               <TabsTrigger value="quick_actions">{t("professional.tabs.quickActions")}</TabsTrigger>
               <TabsTrigger value="action_needed">
@@ -1693,21 +1699,9 @@ export default function DashboardPage() {
             </TabsList>
 
             <TabsContent value="quick_actions">
-              <Card>
-                <CardHeader>
-                  <CardTitle>{t("professional.tabs.quickActions")}</CardTitle>
-                  <CardDescription>{t("professional.quickActions.description")}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    <Button
-                      variant="outline"
-                      onClick={() => router.push('/profile')}
-                      className="flex items-center gap-2"
-                    >
-                      <User className="h-4 w-4" />
-                      {t("professional.quickActions.editProfile")}
-                    </Button>
+              <Card className="py-4" aria-label={t("professional.quickActions.description")}>
+                <CardContent className="px-4">
+                  <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     <Button
                       variant="outline"
                       onClick={() => router.push('/dashboard/benefits')}

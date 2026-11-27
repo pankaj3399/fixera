@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Checkbox } from "@/components/ui/checkbox"
 import {
   CheckCircle, Clock, CreditCard,
   GitCompareArrows, Loader2, Package, Plus, Search, X,
@@ -35,6 +34,7 @@ import { getCustomerActionItems, type ActionItem, type ActionNeededBooking, type
 import QuoteComparisonModal from "@/components/dashboard/QuoteComparisonModal"
 import SharedBookingsTable, { type SharedBookingRow } from "@/components/dashboard/SharedBookingsTable"
 import SharedQuotesTable from "@/components/dashboard/SharedQuotesTable"
+import CustomerBookingTimeline from "@/components/dashboard/CustomerBookingTimeline"
 
 type Booking = SharedBookingRow & {
   bookingType: "professional" | "project"
@@ -98,6 +98,8 @@ const CUSTOMER_ACTION_ITEM_KEYS = {
 } as const satisfies Record<CustomerActionItemKey, string>
 
 const PAGE_SIZE = 20
+
+type ListQuery = { page: number; status: string; service: string; search: string; address: string }
 
 interface ListState {
   items: Booking[]
@@ -215,12 +217,32 @@ export default function CustomerDashboard() {
   // Per-list request counters: only the newest request for a list may write
   // its rows, counts and pager (older, slower responses are discarded).
   const latestListRequest = useRef({ quotes: 0, bookings: 0 })
+  // The bookings list's last successfully loaded query (filters + the page
+  // the server returned), kept apart from the in-flight one: a timeline
+  // refresh reloads what is on screen, never an old page with new filters.
+  const loadedBookingsQueryRef = useRef<ListQuery | null>(null)
+  const requestedBookingsQueryRef = useRef<{ query: ListQuery; settled: boolean } | null>(null)
+  // A timeline change that arrived while a bookings request was in flight:
+  // reload once that request has settled instead of superseding it.
+  const bookingsRefreshQueuedRef = useRef(false)
+  const fetchListRef = useRef<((kind: "quotes" | "bookings", opts: ListQuery) => Promise<void>) | null>(null)
   const fetchList = useCallback(async (
     kind: "quotes" | "bookings",
-    opts: { page: number; status: string; service: string; search: string; address: string },
+    opts: ListQuery,
   ) => {
     const setState = kind === "quotes" ? setQuotes : setBookings
     const requestId = ++latestListRequest.current[kind]
+    const settleBookings = (loaded: ListQuery | null) => {
+      if (kind !== "bookings") return
+      if (requestedBookingsQueryRef.current) requestedBookingsQueryRef.current.settled = true
+      if (loaded) loadedBookingsQueryRef.current = loaded
+      if (!bookingsRefreshQueuedRef.current) return
+      bookingsRefreshQueuedRef.current = false
+      // The settled response may predate the timeline change: load it again.
+      // A failed request is left to its Retry, which reloads fresh data.
+      if (loaded) void fetchListRef.current?.("bookings", loaded)
+    }
+    if (kind === "bookings") requestedBookingsQueryRef.current = { query: opts, settled: false }
     const queryKey = JSON.stringify([opts.status, opts.service, opts.search.trim(), kind === "bookings" ? opts.address.trim() : ""])
     // Another page of the same query keeps its totals while loading; a new
     // filter makes them unknown until its own response arrives.
@@ -253,6 +275,7 @@ export default function CustomerDashboard() {
       if (!response.ok || !data.success) {
         // Remember the page that failed, so Retry repeats that request.
         setState((prev) => failedListState(prev, opts.page, getErrorText(data, t("customerDashboard.loadFailed"))))
+        settleBookings(null)
         return
       }
       if (kind === "quotes" && Array.isArray(data.bookings)) {
@@ -262,9 +285,10 @@ export default function CustomerDashboard() {
           return next
         })
       }
+      const loadedPage = data.pagination?.page ?? opts.page
       setState({
         items: Array.isArray(data.bookings) ? data.bookings : [],
-        page: data.pagination?.page ?? opts.page,
+        page: loadedPage,
         totalPages: data.pagination?.totalPages ?? 1,
         // A successful but partial response keeps what it lacks unknown:
         // only an explicit finite count is a count (0 included).
@@ -277,11 +301,14 @@ export default function CustomerDashboard() {
         loading: false,
         error: null,
       })
+      settleBookings({ ...opts, page: Number.isFinite(Number(loadedPage)) && Number(loadedPage) >= 1 ? Number(loadedPage) : opts.page })
     } catch (err) {
       if (requestId !== latestListRequest.current[kind]) return
       setState((prev) => failedListState(prev, opts.page, getErrorText(err, t("customerDashboard.loadFailed"))))
+      settleBookings(null)
     }
   }, [getErrorText, t])
+  useEffect(() => { fetchListRef.current = fetchList }, [fetchList])
 
   // Server-driven tab lists: every row on every page is reachable, counts
   // come from the server facet (never page-derived).
@@ -334,6 +361,27 @@ export default function CustomerDashboard() {
     void loadActions()
     return () => { latestActionsRequest.current++ }
   }, [loadActions])
+
+  // A customer action on the timeline changes bookings the Overview lists:
+  // reload the last successfully loaded query (its filters and page), and
+  // the action items. While a bookings request is in flight (a new filter's
+  // page 1, another page, a retry) it is not superseded: the reload follows
+  // once it settles, for the query it loaded.
+  const refreshAfterTimelineChange = useCallback(() => {
+    void loadActions()
+    const requested = requestedBookingsQueryRef.current
+    if (requested && !requested.settled) {
+      bookingsRefreshQueuedRef.current = true
+      return
+    }
+    const loaded = loadedBookingsQueryRef.current
+    const sameFilters = (a: ListQuery, b: ListQuery) =>
+      a.status === b.status && a.service === b.service && a.search.trim() === b.search.trim() && a.address.trim() === b.address.trim()
+    // The last request failed for other filters: nothing loaded belongs to
+    // them, so reload that request (as Retry would) rather than old filters.
+    const query = loaded && (!requested || sameFilters(loaded, requested.query)) ? loaded : requested?.query
+    if (query) void fetchList("bookings", query)
+  }, [fetchList, loadActions])
 
   useEffect(() => {
     const loadClaims = async () => {
@@ -606,7 +654,13 @@ export default function CustomerDashboard() {
             </TabsList>
           </div>
 
-          <TabsContent value="my_bookings" className="space-y-6">
+          <TabsContent value="my_bookings">
+          {/* FT2-13: "Booking overview" and "Timeline" views at the top; stats and filters apply to both. */}
+          <Tabs defaultValue="overview" className="space-y-6">
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="overview">{t("customerDashboard.bookingViews.overview")}</TabsTrigger>
+              <TabsTrigger value="timeline">{t("customerDashboard.bookingViews.timeline")}</TabsTrigger>
+            </TabsList>
             <div className="grid md:grid-cols-3 gap-4">
               <Card className="bg-white/80 backdrop-blur border border-indigo-100 shadow-sm">
                 <CardHeader>
@@ -648,8 +702,6 @@ export default function CustomerDashboard() {
               </Card>
             </div>
 
-            {bookings.loading && renderLoadingSkeleton()}
-            <>
                 {renderSearchFilters(
                   bookingSearch, setBookingSearch, debouncedBookingSearch,
                   bookingStatusFilter, setBookingStatusFilter, CUSTOMER_BOOKING_STATUS_FILTERS,
@@ -683,6 +735,8 @@ export default function CustomerDashboard() {
                     />
                   </div>
                 </div>
+              <TabsContent value="overview" className="space-y-4">
+                {bookings.loading && renderLoadingSkeleton()}
                 {!bookings.loading && bookings.error && renderListError(bookings.error, () => gotoBookingsPage(bookings.page))}
                 {!bookings.loading && !bookings.error && bookings.items.length === 0 && renderEmptyState(t("customerDashboard.emptyBookings"))}
                 {!bookings.loading && !bookings.error && bookings.items.length > 0 && (
@@ -703,7 +757,17 @@ export default function CustomerDashboard() {
                   </>
                 )}
                 {!bookings.error && renderPager(bookings, gotoBookingsPage)}
-            </>
+              </TabsContent>
+              <TabsContent value="timeline">
+                <CustomerBookingTimeline
+                  statusFilter={bookingStatusFilter}
+                  serviceFilter={bookingServiceFilter}
+                  search={debouncedBookingSearch}
+                  address={debouncedAddressFilter}
+                  onBookingsChanged={refreshAfterTimelineChange}
+                />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           <TabsContent value="my_quotes" className="space-y-6">
@@ -734,18 +798,6 @@ export default function CustomerDashboard() {
                 {!quotes.loading && !quotes.error && quotes.items.length === 0 && renderEmptyState(t("customerDashboard.emptyQuotes"))}
                 {!quotes.loading && !quotes.error && quotes.items.length > 0 && (
                   <>
-                    <div className="mb-2 flex flex-wrap gap-2">
-                      {quotes.items.map((booking) => (
-                        <label key={booking._id} className="flex items-center gap-1.5 text-xs text-gray-600">
-                          <Checkbox
-                            checked={selectedQuotes.has(booking._id)}
-                            onCheckedChange={() => toggleQuoteSelection(booking)}
-                            aria-label={t("customerDashboard.selectForComparison", { title: booking.bookingNumber || booking._id })}
-                          />
-                          {booking.bookingNumber || booking._id}
-                        </label>
-                      ))}
-                    </div>
                     <SharedQuotesTable
                       bookings={quotes.items}
                       viewerRole="customer"
@@ -754,6 +806,11 @@ export default function CustomerDashboard() {
                       statusLabel={statusLabel}
                       chatLabel={t("customerDashboard.chat")}
                       acceptPayLabel={t("customerDashboard.acceptPay")}
+                      selection={{
+                        isSelected: (id) => selectedQuotes.has(id),
+                        onToggle: (booking) => toggleQuoteSelection(booking as Booking),
+                        label: (booking) => t("customerDashboard.selectForComparison", { title: booking.quotationNumber || booking.bookingNumber || booking._id }),
+                      }}
                       viewLabel={t("customerDashboard.viewDetails")}
                     />
                   </>

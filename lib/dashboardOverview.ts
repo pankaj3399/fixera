@@ -169,6 +169,52 @@ export function resolvePinnedQuoteVersion(booking: unknown): {
   return { pinnedVersion: null, pinnedVersionSource: "not_recorded" }
 }
 
+/** Statuses in which no quotation has been sent to the customer yet. */
+const PRE_QUOTE_STATUSES = new Set(["rfq", "rfq_accepted", "draft_quote"])
+
+function pinnedQuoteVersionRecord(booking: unknown): WireRecord | null {
+  const record = asRecord(booking)
+  const { pinnedVersion } = resolvePinnedQuoteVersion(booking)
+  if (pinnedVersion == null || !Array.isArray(record?.quoteVersions)) return null
+  return (record.quoteVersions as unknown[]).map(asRecord).find((entry) => asNumber(entry?.version) === pinnedVersion) ?? null
+}
+
+function hasQuotation(booking: unknown): boolean {
+  const record = asRecord(booking)
+  if (Array.isArray(record?.quoteVersions) && record.quoteVersions.length > 0) return true
+  const quote = asRecord(record?.quote)
+  return Boolean(quote && (quote.submittedAt || asNumber(quote.totalAmount) != null || asNumber(quote.amount) != null))
+}
+
+/**
+ * FT2-14 service address of a quotation row. The professional fills in the
+ * service address in the quotation (recorded per quote version as
+ * `serviceLocation`); until a quote is sent the booking only carries the
+ * customer's profile address from the request, which is not a service
+ * address yet, so nothing is shown. Legacy versions recorded before the
+ * per-version snapshot fall back to the booking address the quote wrote.
+ */
+export function quoteServiceAddress(booking: unknown): string | null {
+  const record = asRecord(booking)
+  if (!record) return null
+  if (typeof record.status === "string" && PRE_QUOTE_STATUSES.has(record.status)) return null
+  if (!hasQuotation(booking)) return null
+  const pinned = pinnedQuoteVersionRecord(booking)
+  return joinServiceAddress(pinned?.serviceLocation) ?? joinServiceAddress(record.location)
+}
+
+/**
+ * FT2-14 service address of a booking row: a booking made from a quotation
+ * uses the address of the accepted (pinned) quote version it was booked on;
+ * a direct project booking uses the address chosen in the booking wizard.
+ */
+export function bookingServiceAddress(booking: unknown): string | null {
+  const record = asRecord(booking)
+  if (!record) return null
+  const pinned = hasQuotation(booking) ? pinnedQuoteVersionRecord(booking) : null
+  return joinServiceAddress(pinned?.serviceLocation) ?? joinServiceAddress(record.location)
+}
+
 export function quoteVersionHref(bookingId: string, booking: unknown): string {
   const { pinnedVersion } = resolvePinnedQuoteVersion(booking)
   return pinnedVersion != null ? `/bookings/${bookingId}#quotation-v${pinnedVersion}` : `/bookings/${bookingId}`

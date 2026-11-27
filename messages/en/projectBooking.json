@@ -64,7 +64,17 @@
     "usageHintWithUnit": "Provide your best estimate in {unit} so we can calculate an indicative price.",
     "estimatedPrice": "Estimated Price:",
     "continueHint": "Great choice! Click <strong>Next</strong> to select your preferred start date.",
-    "hoursDeterminedByCustomer": "Hours (determined by customer)"
+    "hoursDeterminedByCustomer": "Hours (determined by customer)",
+    "durationPerUnit": "{duration} per {unit}",
+    "perUnitNames": {
+      "hour": "hour",
+      "day": "day",
+      "meter": "metre",
+      "m2": "m²",
+      "m3": "m³",
+      "room": "room",
+      "piece": "piece"
+    }
   },
   "schedule": {
     "rfqTitle": "Before Booking",
@@ -173,7 +183,7 @@
     "description": "Your tier savings and any returning-customer discount are calculated automatically before payment.",
     "customer": "Customer"
   },
-  "chargeNote": "Prices are shown and charged in EUR.",
+  "chargeNote": "Amounts are converted for display. You'll be charged {amount} in EUR.",
   "bookingDescription": {
     "package": "Package: {value}",
     "estimatedUsage": "Estimated usage: {value}",

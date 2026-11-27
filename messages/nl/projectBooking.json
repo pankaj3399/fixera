@@ -64,7 +64,17 @@
     "usageHintWithUnit": "Geef je beste schatting in {unit} zodat we een indicatieve prijs kunnen berekenen.",
     "estimatedPrice": "Geschatte prijs:",
     "continueHint": "Goede keuze! Klik op <strong>Volgende</strong> om je gewenste startdatum te kiezen.",
-    "hoursDeterminedByCustomer": "Uren (bepaald door de klant)"
+    "hoursDeterminedByCustomer": "Uren (bepaald door de klant)",
+    "durationPerUnit": "{duration} per {unit}",
+    "perUnitNames": {
+      "hour": "uur",
+      "day": "dag",
+      "meter": "meter",
+      "m2": "m²",
+      "m3": "m³",
+      "room": "kamer",
+      "piece": "stuk"
+    }
   },
   "schedule": {
     "rfqTitle": "Voor je boekt",
@@ -173,7 +183,7 @@
     "description": "Je niveaukorting en eventuele terugkerende-klantkorting worden automatisch berekend voor de betaling.",
     "customer": "Klant"
   },
-  "chargeNote": "Prijzen worden in EUR weergegeven en afgerekend.",
+  "chargeNote": "Bedragen zijn omgerekend ter informatie. Je betaalt {amount} in EUR.",
   "bookingDescription": {
     "package": "Pakket: {value}",
     "estimatedUsage": "Geschatte hoeveelheid: {value}",

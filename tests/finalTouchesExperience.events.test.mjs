@@ -53,11 +53,35 @@ const { code: guardCode } = transformSync(readFileSync(new URL('../lib/address/b
 const guardExports = {}
 new Function('exports', guardCode)(guardExports)
 
+// The shared one-widget-per-input wiring (FT2-6A), compiled against the same hook harness.
+function compileModule(file, mocks = {}) {
+  const { code } = transformSync(readFileSync(new URL(file, import.meta.url), 'utf8'), {
+    filename: file, jsc: { parser: { syntax: 'typescript', tsx: true } }, module: { type: 'commonjs' },
+  })
+  const exports = {}
+  new Function('require', 'exports', code)(name => name in mocks ? mocks[name] : require(name), exports)
+  return exports
+}
 function mountAddressAutocomplete({ validateAddress = async () => false, geocodeAddress = async () => null } = {}) {
+  // Fresh module state per mount: the suggestion-press guard is reference
+  // counted per module and must install on this mount's document.
+  const placesExports = compileModule('../lib/address/placesAutocomplete.ts')
+  // Every listener per event type is kept (the shared guard and the
+  // component's dropdown tracker both listen to mousedown).
   const events = {}
   const listeners = {}
   let place = null
-  globalThis.document = { activeElement: null, addEventListener: (type, fn) => { events[type] = fn }, removeEventListener() {} }
+  globalThis.document = {
+    activeElement: null,
+    addEventListener: (type, fn) => { (events[type] ??= []).push(fn) },
+    removeEventListener: (type, fn) => { events[type] = (events[type] || []).filter(listener => listener !== fn) },
+  }
+  // Dispatches one cancelable event to every listener, like the DOM does.
+  const dispatch = (type, target) => {
+    const event = { type, target, cancelable: true, defaultPrevented: false, preventDefault() { this.defaultPrevented = true } }
+    for (const listener of [...(events[type] || [])]) listener(event)
+    return event
+  }
   globalThis.google = {
     maps: {
       places: { Autocomplete: class { addListener(name, fn) { listeners[name] = fn } getPlace() { return place } } },
@@ -75,6 +99,10 @@ function mountAddressAutocomplete({ validateAddress = async () => false, geocode
     '@/components/ui/input': { Input }, '@/components/ui/label': { Label: () => null },
     '@/hooks/useGoogleMaps': { useGoogleMaps: () => ({ isLoaded: true, loadGoogleMaps: async () => true, validateAddress, geocodeAddress }) },
     '@/lib/address/blurCommitGuard': guardExports,
+    '@/hooks/usePlacesAutocomplete': compileModule('../hooks/usePlacesAutocomplete.ts', {
+      react: state.api,
+      '@/lib/address/placesAutocomplete': placesExports,
+    }),
   })
   const render = () => findElement(
     state.render(() => Component({ value, onChange: (...args) => { changes.push(args); value = args[0] }, onValidation: v => validations.push(v), useCompanyAddress: false })),
@@ -86,9 +114,10 @@ function mountAddressAutocomplete({ validateAddress = async () => false, geocode
   state.flush()
   globalThis.document.activeElement = field
   return {
-    events, listeners, changes, validations, field, render,
+    events, listeners, changes, validations, field, render, dispatch,
     setPlace(next) { place = next },
-    dropdownEvent: { target: { closest: () => ({}) } },
+    dropdownTarget: { closest: () => ({}) },
+    outsideTarget: { closest: () => null },
   }
 }
 
@@ -100,8 +129,11 @@ test('a dropdown pointer-down that commits no place still validates the typed te
     let input = ui.render()
     input.props.onChange({ target: { value: 'Typed street 1' } })
     input = ui.render()
+    // Both document listeners are installed: the shared guard and the tracker.
+    assert.equal(ui.events.mousedown.length, 2)
     // Scrollbar/footer pointer-down inside .pac-container: no place_changed.
-    ui.events.mousedown(ui.dropdownEvent)
+    // The guard keeps focus in the input by cancelling the press.
+    assert.equal(ui.dispatch('mousedown', ui.dropdownTarget).defaultPrevented, true)
     await input.props.onBlur()
     assert.deepEqual(ui.validations, [false])
     // A fresh edit keeps validating on blur.
@@ -112,7 +144,7 @@ test('a dropdown pointer-down that commits no place still validates the typed te
     assert.deepEqual(ui.changes, [['Typed street 1'], ['Invalid address']])
     // A second autocomplete owns this dropdown interaction: no grace, plain validation.
     globalThis.document.activeElement = {}
-    ui.events.mousedown(ui.dropdownEvent)
+    ui.dispatch('mousedown', ui.dropdownTarget)
     await input.props.onBlur()
     assert.deepEqual(ui.validations, [false, false, false])
   } finally { globalThis.document = previousDocument; globalThis.google = previousGoogle }
@@ -127,7 +159,9 @@ test('a suggestion click commits the selected place once and the blur never over
     let input = ui.render()
     input.props.onChange({ target: { value: 'Grote Markt' } })
     input = ui.render()
-    ui.events.mousedown(ui.dropdownEvent)
+    // A press outside the dropdown is never cancelled.
+    assert.equal(ui.dispatch('mousedown', ui.outsideTarget).defaultPrevented, false)
+    assert.equal(ui.dispatch('mousedown', ui.dropdownTarget).defaultPrevented, true)
     const blur = input.props.onBlur()
     // Google commits the suggestion after the blur, within the grace window.
     ui.setPlace({

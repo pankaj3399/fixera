@@ -276,6 +276,7 @@ test('professional manager: an older list response never overwrites newer facet 
       '@/components/dashboard/QuoteComparisonModal': ui,
       '@/components/dashboard/BookingTimelineBoard': ui,
       '@/components/dashboard/RefundRequestsPanel': ui,
+      '@/components/ui/tabs': stubModule(),
       '@/components/dashboard/SharedBookingsTable': ui,
       '@/components/dashboard/SharedQuotesTable': ui,
       '@/contexts/CurrencyContext': { useCurrency: () => ({ formatMoney: amount => String(amount) }) },
@@ -351,6 +352,7 @@ test('customer dashboard: a failed list keeps its filters, offers a retry, and t
       '@/components/dashboard/QuoteComparisonModal': ui,
       '@/components/dashboard/SharedBookingsTable': ui,
       '@/components/dashboard/SharedQuotesTable': ui,
+      '@/components/dashboard/CustomerBookingTimeline': ui,
     })
     const render = () => state.render(() => Component())
     render()
@@ -691,6 +693,7 @@ test('customer dashboard: Retry repeats the page that failed, not the last page 
       '@/components/dashboard/QuoteComparisonModal': ui,
       '@/components/dashboard/SharedBookingsTable': ui,
       '@/components/dashboard/SharedQuotesTable': ui,
+      '@/components/dashboard/CustomerBookingTimeline': ui,
     })
     const render = () => state.render(() => Component())
     render()
@@ -1633,7 +1636,7 @@ test('admin support panel: an invalid recorded currency never throws; valid buck
   }
 })
 
-function mountCustomerDashboard(state, listRequests) {
+function mountCustomerDashboard(state, listRequests, overrides = {}) {
   globalThis.fetch = url => {
     url = String(url)
     if (url.includes('/api/bookings/my-bookings') && url.includes('limit=20')) {
@@ -1672,6 +1675,8 @@ function mountCustomerDashboard(state, listRequests) {
       '@/components/dashboard/QuoteComparisonModal': ui,
       '@/components/dashboard/SharedBookingsTable': ui,
       '@/components/dashboard/SharedQuotesTable': ui,
+      '@/components/dashboard/CustomerBookingTimeline': ui,
+      ...overrides,
     }),
   }
 }
@@ -1898,6 +1903,7 @@ test('professional timeline: an older response never overwrites a newer filter; 
       '@/components/dashboard/QuoteComparisonModal': ui,
       '@/components/dashboard/BookingTimelineBoard': { __esModule: true, default: Board },
       '@/components/dashboard/RefundRequestsPanel': ui,
+      '@/components/ui/tabs': stubModule(),
       '@/components/dashboard/SharedBookingsTable': ui,
       '@/components/dashboard/SharedQuotesTable': ui,
       '@/contexts/CurrencyContext': { useCurrency: () => ({ formatMoney: amount => String(amount) }) },
@@ -2239,6 +2245,8 @@ test('comparison tabs: every package is a visible, selectable tab in a wrapping 
     '@/components/professional/project-wizard/Step2Subprojects': { PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME: new Map() },
     '@/lib/contentTranslations': await import('../lib/contentTranslations.ts'),
     '@/components/i18n/ContentTranslationsProvider': { useContentText: () => (value) => value },
+    '@/components/search/PackageDurationLabel': { usePackageDurationText: () => null },
+    '@/lib/packageDuration': await import('../lib/packageDuration.ts'),
   })
   const selected = []
   const props = { subprojects: [0, 1, 2, 3, 4].map(i => ({ name: `Package ${i}`, pricing: { type: 'fixed', amount: 100 }, included: [] })), selectedIndex: 3, onSelectPackage() {}, onSelectIndex: i => selected.push(i) }
@@ -2305,4 +2313,65 @@ test('onboarding completion preserves its stored workflow through repeated effec
     assert.equal(reads, 1)
     assert.deepEqual(removals, ['redirectAfterAuth'])
   } finally { state.unmount(); globalThis.fetch = previous.fetch; globalThis.sessionStorage = previous.sessionStorage }
+})
+
+test('customer dashboard: a timeline refresh reloads the last loaded query and never supersedes a pending filter request', async () => {
+  const previousFetch = globalThis.fetch
+  try {
+    const state = hooks()
+    const listRequests = []
+    const Timeline = function CustomerBookingTimeline() { return null }
+    const m = mountCustomerDashboard(state, listRequests, { '@/components/dashboard/CustomerBookingTimeline': { __esModule: true, default: Timeline } })
+    const Component = await m.load()
+    const render = () => state.render(() => Component())
+    const bookingStatus = tree => findAll(tree, node => node.type === m.Select && findAll(node, child => child.type === m.SelectItem && child.props.value === 'completed').length > 0)[0]
+    const bookingRequests = () => listRequests.filter(r => !r.url.includes('rfq'))
+    const bookings = () => bookingRequests().at(-1)
+    const refresh = () => findAll(render(), node => node.type === Timeline)[0].props.onBookingsChanged()
+    const ok = (page, totalPages = 3) => ({ ok: true, json: async () => ({ success: true, bookings: [], statusCounts: {}, serviceCounts: {}, pagination: { page, totalPages, total: 50 } }) })
+    render()
+    state.flush()
+    listRequests.find(r => r.url.includes('status=rfq')).resolve(ok(1, 1))
+    bookings().resolve(ok(1))
+    await settle()
+    // Load page 2 of the "all" query.
+    findAll(render(), node => node.type === m.Button && node.props.children === 'common.next')[0].props.onClick()
+    bookings().resolve(ok(2))
+    await settle()
+    render()
+
+    // Idle: the refresh reloads the loaded page with its own filters.
+    let count = bookingRequests().length
+    refresh()
+    assert.equal(bookingRequests().length, count + 1)
+    assert.match(bookings().url, /page=2&limit=20&status=(?!booked)/)
+    bookings().resolve(ok(2))
+    await settle()
+    render()
+
+    // A new filter starts page 1; a timeline action finishes before it answers.
+    bookingStatus(render()).props.onValueChange('booked')
+    render()
+    state.flush()
+    const pendingFilter = bookings()
+    assert.match(pendingFilter.url, /page=1&limit=20&status=booked/)
+    count = bookingRequests().length
+    refresh()
+    assert.equal(bookingRequests().length, count, 'the pending page-1 request is not superseded, and the old page 2 is not requested with the new filter')
+    // Once page 1 of the new filter loads, it is reloaded for the timeline change.
+    pendingFilter.resolve(ok(1, 1))
+    await settle()
+    assert.equal(bookingRequests().length, count + 1)
+    assert.match(bookings().url, /page=1&limit=20&status=booked/)
+    bookings().resolve(ok(1, 1))
+    await settle()
+    render()
+
+    // The next idle refresh uses the new filter's loaded page 1, not the old page 2.
+    count = bookingRequests().length
+    refresh()
+    assert.equal(bookingRequests().length, count + 1)
+    assert.match(bookings().url, /page=1&limit=20&status=booked/)
+    state.unmount()
+  } finally { globalThis.fetch = previousFetch }
 })

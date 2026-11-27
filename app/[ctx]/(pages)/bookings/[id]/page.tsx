@@ -577,7 +577,7 @@ function BookingDetailContent() {
   const tChat = useTranslations("chat")
   const getErrorText = useErrorMessage()
   const { intl } = useFormatLocale()
-  const { formatMoney } = useCurrency()
+  const { formatMoney, formatDisplayMoney, currency: displayCurrency } = useCurrency()
   const formatDate = (value: string | number | Date) => new Date(value).toLocaleDateString(intl)
   const formatDateTime = (value: string | number | Date) => new Date(value).toLocaleString(intl)
   const enumLabel = (prefix: string, value?: string | null) => {
@@ -636,6 +636,12 @@ function BookingDetailContent() {
   const autoPayExtras = searchParams?.get("payExtras") === "1"
 
   const [booking, setBooking] = useState<BookingDetail | null>(null)
+  // CUR: the quotation (and its acceptance) is shown in the visitor's display
+  // currency until it is paid; the charge itself stays in EUR (noted at the
+  // accept/pay step). Paid amounts are records and stay in their currency.
+  const quotePaid = ['authorized', 'completed', 'partially_refunded', 'refunded'].includes(String(booking?.payment?.status || ''))
+  const formatQuoteMoney = (amount: number, currencyCode?: string | null) =>
+    quotePaid ? formatMoney(amount, currencyCode) : formatDisplayMoney(amount, currencyCode)
   const [details, setDetails] = useState<BookingDetailsDto | null>(null)
   const professionalUnavailable = isAnonymizedIdentity(details?.parties?.professional || booking?.professional)
   const customerUnavailable = isAnonymizedIdentity(details?.parties?.customer || booking?.customer)
@@ -3437,7 +3443,7 @@ function BookingDetailContent() {
                                 <span className="text-gray-700">{ms.title}</span>
                                 <span className="font-medium">
                                   {quotePricingReady && currentVersionMilestoneGrossAmounts[i] != null
-                                    ? formatMoney(currentVersionMilestoneGrossAmounts[i], currentVersion.currency || 'EUR')
+                                    ? formatQuoteMoney(currentVersionMilestoneGrossAmounts[i], currentVersion.currency || 'EUR')
                                     : '...'}
                                 </span>
                               </div>
@@ -3479,9 +3485,9 @@ function BookingDetailContent() {
                                           {('vatLabel' in line && line.vatLabel) || t("quotation.vatRate", { rate: line.vatRate })}
                                         </div>
                                       </td>
-                                      <td className="px-3 py-2 text-right">{quotePricingReady ? formatMoney(net, currentVersion.currency || 'EUR') : '...'}</td>
-                                      <td className="px-3 py-2 text-right">{quotePricingReady ? formatMoney(vatAmount, currentVersion.currency || 'EUR') : '...'}</td>
-                                      <td className="px-3 py-2 text-right font-medium">{quotePricingReady ? formatMoney(total, currentVersion.currency || 'EUR') : '...'}</td>
+                                      <td className="px-3 py-2 text-right">{quotePricingReady ? formatQuoteMoney(net, currentVersion.currency || 'EUR') : '...'}</td>
+                                      <td className="px-3 py-2 text-right">{quotePricingReady ? formatQuoteMoney(vatAmount, currentVersion.currency || 'EUR') : '...'}</td>
+                                      <td className="px-3 py-2 text-right font-medium">{quotePricingReady ? formatQuoteMoney(total, currentVersion.currency || 'EUR') : '...'}</td>
                                     </tr>
                                   )
                                 })}
@@ -3492,13 +3498,21 @@ function BookingDetailContent() {
                       )}
                       <div className="flex justify-between items-center pt-2 border-t">
                         <span className="text-sm font-semibold text-gray-900">{t("quotation.totalInclVat")}</span>
-                        <span className="text-2xl font-bold text-green-600">{quotePricingReady ? formatMoney(currentVersionQuoteTotals.total, currentVersion.currency || 'EUR') : '...'}</span>
+                        <span className="text-2xl font-bold text-green-600">{quotePricingReady ? formatQuoteMoney(currentVersionQuoteTotals.total, currentVersion.currency || 'EUR') : '...'}</span>
                       </div>
+                      {quotePricingReady && !quotePaid && displayCurrency !== (currentVersion.currency || 'EUR').toUpperCase() && (
+                        <p className="text-xs text-gray-500 text-right" data-testid="quote-charge-note">
+                          {t("quotation.chargedInNote", {
+                            amount: formatMoney(currentVersionQuoteTotals.total, currentVersion.currency || 'EUR'),
+                            currency: (currentVersion.currency || 'EUR').toUpperCase(),
+                          })}
+                        </p>
+                      )}
                       {quotePricingReady && currentVersionQuoteTotals.vatAmount > 0 && (
                         <p className="text-xs text-gray-500 text-right">
                           {t("quotation.netPlusVat", {
-                            net: formatMoney(currentVersionQuoteTotals.netAmount, currentVersion.currency || 'EUR'),
-                            vat: formatMoney(currentVersionQuoteTotals.vatAmount, currentVersion.currency || 'EUR'),
+                            net: formatQuoteMoney(currentVersionQuoteTotals.netAmount, currentVersion.currency || 'EUR'),
+                            vat: formatQuoteMoney(currentVersionQuoteTotals.vatAmount, currentVersion.currency || 'EUR'),
                           })}
                         </p>
                       )}
@@ -3508,7 +3522,7 @@ function BookingDetailContent() {
                             <span className="font-semibold">{t("loyalty.youSave")}</span>
                           </div>
                           <div className="text-xs font-semibold text-amber-900">
-                            {formatMoney(Math.max(0, quotationSavingAmount), currentVersion.currency || 'EUR')}
+                            {formatQuoteMoney(Math.max(0, quotationSavingAmount), currentVersion.currency || 'EUR')}
                           </div>
                         </div>
                       )}
@@ -3539,7 +3553,7 @@ function BookingDetailContent() {
                                   <span className="font-medium">v{v.version}</span>
                                   <span className="text-xs text-gray-500">{formatDate(v.createdAt)}</span>
                                 </div>
-                                <p className="text-xs text-gray-600">{customerPricingReady ? formatMoney(calculateQuoteVersionVatTotals(v, customerPrice).total, v.currency || 'EUR') : '...'}</p>
+                                <p className="text-xs text-gray-600">{customerPricingReady ? formatQuoteMoney(calculateQuoteVersionVatTotals(v, customerPrice).total, v.currency || 'EUR') : '...'}</p>
                                 {v.changeNote && <p className="text-xs text-gray-500 italic mt-1">{v.changeNote}</p>}
                               </a>
                             ))}
@@ -3585,11 +3599,11 @@ function BookingDetailContent() {
                       <p><span className="text-gray-500">{t("quotation.scopeLabel")}</span> {authoritativeVersion.scope}</p>
                       <p>
                         <span className="text-gray-500">{t("quotation.netTotal")}</span>{' '}
-                        <strong>{formatMoney(authoritativeVersion.totalAmount, authoritativeVersion.currency || 'EUR')}</strong>
+                        <strong>{formatQuoteMoney(authoritativeVersion.totalAmount, authoritativeVersion.currency || 'EUR')}</strong>
                       </p>
                       <p>
                         <span className="text-gray-500">{t("quotation.totalInclVatLabel")}</span>{' '}
-                        <strong>{formatMoney(calculateQuoteVersionVatTotals(authoritativeVersion).total, authoritativeVersion.currency || 'EUR')}</strong>
+                        <strong>{formatQuoteMoney(calculateQuoteVersionVatTotals(authoritativeVersion).total, authoritativeVersion.currency || 'EUR')}</strong>
                       </p>
                       <p><span className="text-gray-500">{t("quotation.validUntilLabel")}</span> {formatValidUntilLabel(authoritativeVersion.validUntil, intl, t("common.notAvailable"))}</p>
                       <p className="text-xs text-gray-500">{t("quotation.waitingForCustomer")}</p>
@@ -3694,11 +3708,11 @@ function BookingDetailContent() {
                           </div>
                           <div className="flex justify-between text-xs text-gray-600">
                             <span>{t("milestones.completedAmount", {
-                              amount: showAmounts ? formatMoney(displayCompleted, booking.quote?.currency || 'EUR') : '...',
+                              amount: showAmounts ? formatQuoteMoney(displayCompleted, booking.quote?.currency || 'EUR') : '...',
                               basis: amountLabel,
                             })}</span>
                             <span>{t("milestones.paidAmount", {
-                              amount: showAmounts ? formatMoney(displayPaid, booking.quote?.currency || 'EUR') : '...',
+                              amount: showAmounts ? formatQuoteMoney(displayPaid, booking.quote?.currency || 'EUR') : '...',
                               basis: amountLabel,
                             })}</span>
                           </div>
@@ -3755,7 +3769,7 @@ function BookingDetailContent() {
                                 <div>
                                   <p className="text-sm font-medium">{ms.title}</p>
                                   <p className="text-xs text-gray-500">
-                                    {displayAmount != null ? formatMoney(displayAmount, booking.quote?.currency || 'EUR') : '...'}
+                                    {displayAmount != null ? formatQuoteMoney(displayAmount, booking.quote?.currency || 'EUR') : '...'}
                                     {user?.role === 'customer' ? ` ${t("milestones.basisInclVat")}` : ` ${t("milestones.basisNet")}`}
                                   </p>
                                   {user?.role === 'customer' && milestoneIncludesOptions[i] && (
@@ -3841,8 +3855,8 @@ function BookingDetailContent() {
                         <span className="text-sm text-gray-600">{t("quote.amountExclVat")}</span>
                         <span className={`text-2xl font-bold ${discountPreview && discountPreview.totalDiscount > 0 ? "text-gray-400 line-through text-lg" : "text-green-600"}`}>
                           {discountPreview
-                            ? formatMoney(discountPreview.originalAmount, discountPreview.currency)
-                            : booking.quote.amount != null ? formatMoney(booking.quote.amount, booking.quote.currency || "€") : "—"}
+                            ? formatQuoteMoney(discountPreview.originalAmount, discountPreview.currency)
+                            : booking.quote.amount != null ? formatQuoteMoney(booking.quote.amount, booking.quote.currency || "€") : "—"}
                         </span>
                       </div>
 
@@ -3863,7 +3877,7 @@ function BookingDetailContent() {
                                 {t("loyalty.memberDiscount", { tier: discountPreview.loyaltyDiscount.tier, percentage: discountPreview.loyaltyDiscount.percentage })}
                               </span>
                               <span className="text-green-600 font-medium">
-                                -{formatMoney(discountPreview.loyaltyDiscount.amount, booking.quote.currency || "€")}
+                                -{formatQuoteMoney(discountPreview.loyaltyDiscount.amount, booking.quote.currency || "€")}
                               </span>
                             </div>
                           )}
@@ -3874,7 +3888,7 @@ function BookingDetailContent() {
                                 {t("loyalty.returningCustomer", { percentage: discountPreview.repeatBuyerDiscount.percentage })}
                               </span>
                               <span className="text-green-600 font-medium">
-                                -{formatMoney(discountPreview.repeatBuyerDiscount.amount, booking.quote.currency || "€")}
+                                -{formatQuoteMoney(discountPreview.repeatBuyerDiscount.amount, booking.quote.currency || "€")}
                               </span>
                             </div>
                           )}
@@ -3885,20 +3899,33 @@ function BookingDetailContent() {
                                 {t("loyalty.pointsRedeemedUpper", { points: discountPreview.pointsDiscount.pointsUsed })}
                               </span>
                               <span className="text-green-600 font-medium">
-                                -{formatMoney(discountPreview.pointsDiscount.discountAmount, booking.quote.currency || "€")}
+                                -{formatQuoteMoney(discountPreview.pointsDiscount.discountAmount, booking.quote.currency || "€")}
                               </span>
                             </div>
                           )}
                           <div className="flex justify-between items-center pt-2 border-t border-green-200">
                             <span className="text-sm font-semibold text-green-900">{t("quote.youPay")}</span>
                             <span className="text-2xl font-bold text-green-600">
-                              {formatMoney(discountPreview.finalAmount, booking.quote.currency || "€")}
+                              {formatQuoteMoney(discountPreview.finalAmount, booking.quote.currency || "€")}
                             </span>
                           </div>
                           <p className="text-xs text-green-600 text-right">
-                            {t("quote.youSaveBang", { amount: formatMoney(discountPreview.totalDiscount, booking.quote.currency || "€") })}
+                            {t("quote.youSaveBang", { amount: formatQuoteMoney(discountPreview.totalDiscount, booking.quote.currency || "€") })}
                           </p>
                         </div>
+                      )}
+
+                      {/* Converted amounts: the EUR charge, with or without a discount. */}
+                      {!quotePaid && displayCurrency !== 'EUR' && (discountPreview || booking.quote.amount != null) && (
+                        <p className="text-xs text-gray-500 text-right" data-testid="quote-charge-note">
+                          {t("quotation.chargedInNote", {
+                            amount: formatMoney(
+                              discountPreview ? discountPreview.finalAmount : (booking.quote.amount as number),
+                              booking.quote.currency || "€"
+                            ),
+                            currency: 'EUR',
+                          })}
+                        </p>
                       )}
 
                       {booking.quote.description && (
@@ -3935,7 +3962,7 @@ function BookingDetailContent() {
                           <div className="flex justify-between">
                             <span className="text-gray-700">{t("loyalty.originalQuote")}</span>
                             <span className="font-medium text-gray-900">
-                              {formatMoney(discountPreview.originalAmount, discountPreview.currency)}
+                              {formatQuoteMoney(discountPreview.originalAmount, discountPreview.currency)}
                             </span>
                           </div>
 
@@ -3944,7 +3971,7 @@ function BookingDetailContent() {
                               {t("loyalty.loyaltyDiscount", { percentage: discountPreview.loyaltyDiscount.percentage })}
                             </span>
                             <span className="font-medium text-green-700">
-                              -{formatMoney(discountPreview.loyaltyDiscount.amount, discountPreview.currency)}
+                              -{formatQuoteMoney(discountPreview.loyaltyDiscount.amount, discountPreview.currency)}
                             </span>
                           </div>
 
@@ -3954,7 +3981,7 @@ function BookingDetailContent() {
                                 {t("loyalty.returningCustomerDiscount", { percentage: discountPreview.repeatBuyerDiscount.percentage })}
                               </span>
                               <span className="font-medium text-green-700">
-                                -{formatMoney(discountPreview.repeatBuyerDiscount.amount, discountPreview.currency)}
+                                -{formatQuoteMoney(discountPreview.repeatBuyerDiscount.amount, discountPreview.currency)}
                               </span>
                             </div>
                           )}
@@ -3965,7 +3992,7 @@ function BookingDetailContent() {
                                 {t("loyalty.pointsRedeemed", { points: discountPreview.pointsDiscount.pointsUsed })}
                               </span>
                               <span className="font-medium text-green-700">
-                                -{formatMoney(discountPreview.pointsDiscount.discountAmount, discountPreview.currency)}
+                                -{formatQuoteMoney(discountPreview.pointsDiscount.discountAmount, discountPreview.currency)}
                               </span>
                             </div>
                           )}
@@ -3973,13 +4000,13 @@ function BookingDetailContent() {
                           <div className="flex justify-between border-t border-amber-200 pt-2">
                             <span className="font-semibold text-gray-900">{t("loyalty.youSave")}</span>
                             <span className="font-semibold text-green-700">
-                              {formatMoney(discountPreview.totalDiscount, discountPreview.currency)}
+                              {formatQuoteMoney(discountPreview.totalDiscount, discountPreview.currency)}
                             </span>
                           </div>
                           <div className="flex justify-between">
                             <span className="font-semibold text-gray-900">{t("loyalty.youPay")}</span>
                             <span className="text-base font-bold text-blue-700">
-                              {formatMoney(discountPreview.finalAmount, discountPreview.currency)}
+                              {formatQuoteMoney(discountPreview.finalAmount, discountPreview.currency)}
                             </span>
                           </div>
                         </div>
@@ -4000,7 +4027,7 @@ function BookingDetailContent() {
                           {t("loyalty.useYourPoints")}
                         </p>
                         <p className="text-xs text-purple-700 mb-2">
-                          {t("loyalty.pointsAvailable", { points: discountPreview.availablePoints ?? 0, value: formatMoney((discountPreview.availablePoints ?? 0) * conversionRate) })}
+                          {t("loyalty.pointsAvailable", { points: discountPreview.availablePoints ?? 0, value: formatQuoteMoney((discountPreview.availablePoints ?? 0) * conversionRate) })}
                           {discountPreview.pointsExpiry && (
                             <span> &middot; {t("loyalty.expires", { date: formatDate(discountPreview.pointsExpiry) })}</span>
                           )}

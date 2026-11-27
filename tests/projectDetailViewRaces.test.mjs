@@ -43,7 +43,7 @@ const json = (body, status = 200) =>
 const reviewsBody = { success: true, data: { reviews: [review], ratingsSummary: null, ordersInQueue: 0, pagination: { totalPages: 1 } } }
 
 /** Reviews requests go to `respond`; every other backend read answers as an empty failure. */
-function view(respond) {
+function view(respond, options = {}) {
   globalThis.fetch = async (url, init) => {
     const href = String(url)
     if (href.includes('/reviews?')) return respond(href, init)
@@ -52,11 +52,11 @@ function view(respond) {
   return componentHarness(file, {
     'next/navigation': { useParams: () => ({ id: 'p1' }), useRouter: () => ({ push() {} }) },
     'next-intl': { useTranslations: () => t },
-    '@/contexts/AuthContext': { useAuth: () => ({ user: null, isAuthenticated: false, loading: false }) },
+    '@/contexts/AuthContext': { useAuth: () => options.auth ?? ({ user: null, isAuthenticated: false, loading: false }) },
     sonner: { toast: { error: (message) => toasts.push(message), success() {} } },
     '@/lib/utils': { authFetch: async () => json({ success: false }, 404) },
     'next/image': { __esModule: true, default: 'img' },
-    '@/components/project/ProjectBookingForm': { __esModule: true, default: () => null },
+    '@/components/project/ProjectBookingForm': { __esModule: true, default: options.bookingForm ?? (() => null) },
     '@/components/project/SubprojectComparisonTable': { __esModule: true, default: () => null },
     '@/components/favorites/FavoriteButton': { __esModule: true, default: () => null },
     '@/lib/contentTranslations': contentTranslations,
@@ -69,6 +69,7 @@ function view(respond) {
     '@/contexts/CurrencyContext': { useCurrency: () => ({ formatPrice: (value) => String(value) }) },
     '@/lib/i18n/useFormatLocale': { useFormatLocale: () => ({ intl: 'en-US' }) },
     '@/lib/publicProjectShape': { normalizePublicProject: (value) => value },
+    '@/lib/booking/checkoutDraft': options.checkoutDraft ?? { loadCheckoutDraft: () => null, clearCheckoutDraft() {}, findDraftPackageIndex: () => null, RESUME_BOOKING_PARAM: 'resumeBooking' },
     '@/lib/professionalLevel': { getAdminTagStyle: () => '', formatAdminTagLabel: (value) => value, formatResponseTime: () => '' },
     '@/components/dashboard/TierBadge': { __esModule: true, default: () => null },
     '@/lib/tierColors': { useTierColors: () => ({ levelColor: () => '' }) },
@@ -128,5 +129,57 @@ test('an aborted review request does not clear the loading state of the request 
   } finally {
     h.unmount()
     globalThis.fetch = originalFetch
+  }
+})
+
+test('CR: back from payment reopens the wizard with the saved package by id, for its owner only', async () => {
+  const draftLib = await import('../lib/booking/checkoutDraft.ts')
+  const previousWindow = globalThis.window
+  const packages = [{ _id: 'pkg-a', name: 'Basic' }, { _id: 'pkg-c', name: 'Deluxe' }]
+  const run = async (selectedPackageId) => {
+    toasts.length = 0
+    const loads = []
+    const cleared = []
+    const formProps = []
+    const BookingForm = () => null
+    globalThis.window = {
+      location: { href: 'https://fixera.test/projects/p1?resumeBooking=1' },
+      history: { state: null, replaceState() {} },
+    }
+    const h = view(() => json(reviewsBody), {
+      auth: { user: { _id: 'u1', role: 'customer' }, isAuthenticated: true, loading: false },
+      bookingForm: BookingForm,
+      checkoutDraft: {
+        ...draftLib,
+        loadCheckoutDraft: (projectId, userId) => {
+          loads.push([projectId, userId])
+          return { selectedPackageIndex: 1, selectedPackageId, selectedPackageName: 'Premium' }
+        },
+        clearCheckoutDraft: (projectId) => cleared.push(projectId),
+      },
+    })
+    try {
+      h.render({ initialProject: { ...project, subprojects: packages }, serverNow: '2026-11-09T00:00:00.000Z' })
+      await h.settle()
+      h.render()
+      formProps.push(...h.findAll((node) => node.type === BookingForm).map((node) => node.props))
+      return { loads, cleared, formProps }
+    } finally {
+      h.unmount()
+      globalThis.fetch = originalFetch
+    }
+  }
+  try {
+    // The saved package now sits at index 1 after another one was removed.
+    const found = await run('pkg-c')
+    assert.deepEqual(found.loads[0], ['p1', 'u1'], 'the draft is read for the signed-in customer')
+    assert.equal(found.formProps.at(-1)?.selectedSubprojectIndex, 1)
+    // The saved package was removed: index 1 is another package, so the wizard stays closed.
+    const gone = await run('pkg-b')
+    assert.equal(gone.formProps.length, 0, 'no wizard with a different package')
+    assert.deepEqual(gone.cleared, ['p1'])
+    assert.ok(toasts.includes('page.resumePackageUnavailable'))
+  } finally {
+    globalThis.window = previousWindow
   }
 })

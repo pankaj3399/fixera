@@ -1857,7 +1857,8 @@ function ProfessionalOnboardingContent() {
         onVerificationSuccess={() => {
           void checkAuth()
         }}
-        onBack={() => router.push('/login')}
+        // FT2-6C: back to the signup form, prefilled from this account.
+        onBack={() => router.push('/register?edit=1')}
       />
     )
   }
