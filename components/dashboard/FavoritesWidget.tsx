@@ -20,7 +20,7 @@ interface FavoritesStats {
   newSinceLastSeen: number;
 }
 
-export default function FavoritesWidget() {
+export default function FavoritesWidget({ className = "" }: { className?: string } = {}) {
   const t = useTranslations("dashboardWidgets");
   const [stats, setStats] = useState<FavoritesStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,7 +67,7 @@ export default function FavoritesWidget() {
 
   if (loading) {
     return (
-      <Card className="border-pink-100 bg-gradient-to-br from-white via-pink-50 to-purple-50 shadow-md">
+      <Card className={`border-pink-100 bg-gradient-to-br from-white via-pink-50 to-purple-50 shadow-md ${className}`}>
         <CardHeader>
           <Skeleton className="h-5 w-32" />
         </CardHeader>
@@ -85,7 +85,7 @@ export default function FavoritesWidget() {
   const topProjects = stats.perProject.filter((p) => p.count > 0).slice(0, 3);
 
   return (
-    <Card className="border-pink-100 bg-gradient-to-br from-white via-pink-50 to-purple-50 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl">
+    <Card className={`border-pink-100 bg-gradient-to-br from-white via-pink-50 to-purple-50 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-xl ${className}`}>
       <CardHeader>
         <CardTitle className="flex items-center justify-between gap-2">
           <span className="flex items-center gap-2">
