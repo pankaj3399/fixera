@@ -84,7 +84,7 @@ test('package duration display mirrors the duration mode', () => {
   assert.deepEqual(packageDurationDisplay(hourly), { kind: 'customer_hours' })
   // Even a stale stored value is not shown as the professional's duration.
   assert.deepEqual(packageDurationDisplay({ ...hourly, executionDuration: { value: 5, unit: 'days' } }), { kind: 'customer_hours' })
-  assert.deepEqual(packageDurationDisplay(perM2), { kind: 'duration', value: 0.5, unit: 'days' })
+  assert.deepEqual(packageDurationDisplay(perM2), { kind: 'per_unit', value: 0.5, unit: 'days', pricingUnit: 'm²' })
   assert.deepEqual(packageDurationDisplay(fixed), { kind: 'duration', value: 3, unit: 'hours' })
   // FT1 6A: a legacy hour-unit package without a basis is determined by the customer too.
   assert.deepEqual(packageDurationDisplay({ pricing: { type: 'unit', unit: 'hour' }, executionDuration: { value: 2, unit: 'hours' } }), { kind: 'customer_hours' })
@@ -94,4 +94,28 @@ test('package duration display mirrors the duration mode', () => {
     assert.equal(packageDurationDisplay({ pricing: { type: 'fixed' }, executionDuration: { value, unit: 'hours' } }), null, String(value))
   }
   assert.equal(packageDurationDisplay(undefined), null)
+})
+
+test('FT1 6B: a per-unit package says "x hours per <configured unit>" on the search card', () => {
+  const perRoom = { ...perM2, pricing: { type: 'unit', unit: 'room', durationBasis: 'per_unit' }, executionDuration: { value: 2, unit: 'hours' } }
+  const perM3 = { ...perM2, pricing: { type: 'unit', unit: 'm³', durationBasis: 'per_unit' }, executionDuration: { value: 1, unit: 'hours' } }
+  const perPanel = { ...perM2, pricing: { type: 'unit', unit: 'panel', durationBasis: 'per_unit' }, executionDuration: { value: 3, unit: 'hours' } }
+  const expected = {
+    en: ['2 hours per room', '1 hour per m³', '3 hours per panel', '0.5 days per m²'],
+    nl: ['2 uur per kamer', '1 uur per m³', '3 uur per panel', '0,5 dagen per m²'],
+    fr: ['2 heures par pièce', '1 heure par m³', '3 heures par panel', '0,5 jour par m²'],
+  }
+  for (const locale of ['en', 'nl', 'fr']) {
+    const html = render([perRoom, perM3, perPanel, perM2], locale)
+    for (const text of expected[locale]) assert.ok(html.includes(text), `${locale}: ${text} in ${html}`)
+  }
+  // A legacy per-booking unit package keeps the plain whole-booking duration.
+  const legacy = render([{ ...perM2, pricing: { type: 'unit', unit: 'm²' } }], 'en')
+  assert.doesNotMatch(legacy, /per/)
+})
+
+test('FT1 6B: the project page package panel uses the same per-unit label', () => {
+  const TABLE = readFileSync(new URL('../components/project/SubprojectComparisonTable.tsx', import.meta.url), 'utf8')
+  assert.match(TABLE, /usePackageDurationText\(currentSubproject\)/)
+  assert.match(TABLE, /comparison\.execution/)
 })

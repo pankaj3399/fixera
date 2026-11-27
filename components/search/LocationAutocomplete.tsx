@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import { useTranslations } from 'next-intl'
 import { Input } from '@/components/ui/input'
 import { MapPin } from 'lucide-react'
 import { useGoogleMaps } from '@/hooks/useGoogleMaps'
+import { usePlacesAutocomplete } from '@/hooks/usePlacesAutocomplete'
 
 export interface LocationData {
   formattedAddress: string
@@ -15,6 +16,11 @@ export interface LocationData {
   city?: string
   state?: string
   country?: string
+}
+
+const LOCATION_AUTOCOMPLETE_OPTIONS = {
+  types: ['(regions)'],
+  fields: ['formatted_address', 'address_components', 'geometry'],
 }
 
 interface LocationAutocompleteProps {
@@ -34,26 +40,20 @@ export default function LocationAutocomplete({
 }: LocationAutocompleteProps) {
   const t = useTranslations('search')
   const inputRef = useRef<HTMLInputElement>(null)
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
   const { isLoaded, loadGoogleMaps } = useGoogleMaps()
 
   const enableAutocomplete = useCallback(() => {
     void loadGoogleMaps()
   }, [loadGoogleMaps])
 
-  useEffect(() => {
-    if (!isLoaded || !inputRef.current) {
-      return
-    }
-
-    autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, {
-      types: ['(regions)'],
-      fields: ['formatted_address', 'address_components', 'geometry']
-    })
-
-    autocompleteRef.current.addListener('place_changed', () => {
-      const place = autocompleteRef.current?.getPlace()
-      if (!place?.formatted_address) return
+  // One widget per input for the life of the field: callers pass an inline
+  // onChange, and re-creating the widget per render stacked stale dropdowns
+  // on the input so the first click on a suggestion did nothing (FT2-6A).
+  usePlacesAutocomplete(inputRef, {
+    enabled: isLoaded,
+    options: LOCATION_AUTOCOMPLETE_OPTIONS,
+    onPlaceChanged: (place) => {
+      if (!place.formatted_address) return
 
       let city = ''
       let country = ''
@@ -76,56 +76,29 @@ export default function LocationAutocomplete({
       const parts = [city, stateOrRegion, country].filter(Boolean)
       const formattedLocation = parts.length > 0 ? parts.join(', ') : place.formatted_address
 
-      // Extract coordinates from geometry with proper null checks
-      let coordinates: { lat: number; lng: number } | undefined;
-
+      let coordinates: { lat: number; lng: number } | undefined
       try {
-        if (place.geometry?.location) {
-          const location = place.geometry.location;
-          const resolveCoordinate = (
-            value: number | (() => number) | undefined
-          ): number | undefined => {
-            if (typeof value === 'function') {
-              return value();
-            }
-            if (typeof value === 'number') {
-              return value;
-            }
-            return undefined;
-          };
-
-          const latValue = resolveCoordinate(location.lat);
-          const lngValue = resolveCoordinate(location.lng);
-
-          if (latValue !== undefined && lngValue !== undefined) {
-            coordinates = {
-              lat: latValue,
-              lng: lngValue
-            };
+        const location = place.geometry?.location
+        if (location) {
+          const lat = typeof location.lat === 'function' ? location.lat() : location.lat
+          const lng = typeof location.lng === 'function' ? location.lng() : location.lng
+          if (typeof lat === 'number' && typeof lng === 'number') {
+            coordinates = { lat, lng }
           }
         }
       } catch (error) {
-        console.warn('ƒsÿ‹,? Could not extract coordinates from location:', error);
+        console.warn('Could not extract coordinates from location:', error)
       }
 
-      const locationData: LocationData = {
+      onChange(formattedLocation, {
         formattedAddress: formattedLocation,
         coordinates,
         city,
         state: stateOrRegion,
-        country
-      }
-
-      console.log('📍 Location selected with coordinates:', locationData)
-      onChange(formattedLocation, locationData)
-    })
-
-    return () => {
-      if (autocompleteRef.current) {
-        google.maps.event.clearInstanceListeners(autocompleteRef.current)
-      }
-    }
-  }, [isLoaded, onChange])
+        country,
+      })
+    },
+  })
 
   return (
     <div className="flex items-center w-full">

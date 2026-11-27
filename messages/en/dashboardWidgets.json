@@ -389,7 +389,12 @@
     },
     "invoice": "Invoice",
     "download": "Download",
-    "acceptPay": "Accept & Pay"
+    "acceptPay": "Accept & Pay",
+    "bookingViews": {
+      "overview": "Booking overview",
+      "timeline": "Timeline"
+    },
+    "timelineEmpty": "No active bookings to plan in the timeline yet."
   },
   "professionalManager": {
     "page": {
@@ -450,7 +455,11 @@
       "loadBookings": "Failed to load bookings."
     },
     "filterByStatus": "Filter by status",
-    "filterByService": "Filter by service"
+    "filterByService": "Filter by service",
+    "views": {
+      "overview": "Booking overview",
+      "timeline": "Timeline"
+    }
   },
   "tables": {
     "colProject": "Project / subproject",
@@ -471,8 +480,7 @@
     "colPrice": "Price",
     "colStatus": "Status",
     "colInvoice": "Invoice",
-    "colPayoutDate": "Payout date",
-    "colPayoutRefund": "Payout / refund",
+    "colPayout": "Payout date / amount / refund",
     "colActions": "Quick actions",
     "colDetails": "Details",
     "bookingsTableLabel": "Bookings",
@@ -490,7 +498,8 @@
     "durationUnits": {
       "hours": "{count, plural, one {# hour} other {# hours}}",
       "days": "{count, plural, one {# day} other {# days}}"
-    }
+    },
+    "colCompare": "Compare"
   },
   "levelUp": {
     "customerTitle": "Level up!",

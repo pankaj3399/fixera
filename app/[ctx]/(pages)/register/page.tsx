@@ -12,6 +12,7 @@ import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { useAuth } from '@/contexts/AuthContext'
 import DualVerificationComponent from '@/components/DualVerificationComponent'
+import { splitSignupPhone } from '@/lib/auth/signupContact'
 import { PhoneCountryCodeSelect } from '@/components/PhoneCountryCodeSelect'
 import { isValidPhoneNumber } from 'libphonenumber-js'
 
@@ -37,6 +38,8 @@ export default function RegisterPage() {
 function RegisterForm() {
   const t = useTranslations('auth')
   const [currentStep, setCurrentStep] = useState<'form' | 'verification'>('form')
+  // When signup sent both OTPs: starts the 2-minute resend cooldown (FT2-6C).
+  const [codesSentAt, setCodesSentAt] = useState<number | null>(null)
   const [formData, setFormData] = useState<FormData>({
     name: '',
     email: '',
@@ -150,6 +153,7 @@ function RegisterForm() {
       })
 
       if (success) {
+        setCodesSentAt(Date.now())
         setCurrentStep('verification')
       }
     } catch (error) {
@@ -176,7 +180,11 @@ function RegisterForm() {
         email={formData.email}
         phone={formData.countryCode + formData.phone}
         onVerificationSuccess={handleVerificationSuccess}
-        onBack={() => setCurrentStep('form')}
+        onContactChange={(contact) => {
+          const { countryCode, national } = splitSignupPhone(contact.phone, formData.countryCode)
+          setFormData((prev) => ({ ...prev, email: contact.email, countryCode, phone: national }))
+        }}
+        codesSentAt={codesSentAt}
       />
     )
   }

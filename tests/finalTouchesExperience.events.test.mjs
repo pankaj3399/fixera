@@ -53,6 +53,16 @@ const { code: guardCode } = transformSync(readFileSync(new URL('../lib/address/b
 const guardExports = {}
 new Function('exports', guardCode)(guardExports)
 
+// The shared one-widget-per-input wiring (FT2-6A), compiled against the same hook harness.
+function compileModule(file, mocks = {}) {
+  const { code } = transformSync(readFileSync(new URL(file, import.meta.url), 'utf8'), {
+    filename: file, jsc: { parser: { syntax: 'typescript', tsx: true } }, module: { type: 'commonjs' },
+  })
+  const exports = {}
+  new Function('require', 'exports', code)(name => name in mocks ? mocks[name] : require(name), exports)
+  return exports
+}
+const placesExports = compileModule('../lib/address/placesAutocomplete.ts')
 function mountAddressAutocomplete({ validateAddress = async () => false, geocodeAddress = async () => null } = {}) {
   const events = {}
   const listeners = {}
@@ -75,6 +85,10 @@ function mountAddressAutocomplete({ validateAddress = async () => false, geocode
     '@/components/ui/input': { Input }, '@/components/ui/label': { Label: () => null },
     '@/hooks/useGoogleMaps': { useGoogleMaps: () => ({ isLoaded: true, loadGoogleMaps: async () => true, validateAddress, geocodeAddress }) },
     '@/lib/address/blurCommitGuard': guardExports,
+    '@/hooks/usePlacesAutocomplete': compileModule('../hooks/usePlacesAutocomplete.ts', {
+      react: state.api,
+      '@/lib/address/placesAutocomplete': placesExports,
+    }),
   })
   const render = () => findElement(
     state.render(() => Component({ value, onChange: (...args) => { changes.push(args); value = args[0] }, onValidation: v => validations.push(v), useCompanyAddress: false })),

@@ -34,7 +34,8 @@ import { toast } from 'sonner';
 import Link from 'next/link';
 import { logError } from '@/lib/logger';
 import { useAuth } from '@/contexts/AuthContext';
-import DualVerificationComponent from '@/components/DualVerificationComponent';
+import DualVerificationComponent from '@/components/DualVerificationComponent'
+import { splitSignupPhone } from '@/lib/auth/signupContact';
 import {
   validateVATFormat,
   validateVATWithAPI,
@@ -132,6 +133,8 @@ function CustomerSignupForm() {
   const [currentStep, setCurrentStep] = useState<'form' | 'verification'>(
     'form'
   );
+  // When signup sent both OTPs: starts the 2-minute resend cooldown (FT2-6C).
+  const [codesSentAt, setCodesSentAt] = useState<number | null>(null);
   const [formData, setFormData] = useState<FormData>({
     name: '',
     email: '',
@@ -629,6 +632,7 @@ function CustomerSignupForm() {
 
       if (success) {
         toast.success(t('customerSignup.accountCreated'));
+        setCodesSentAt(Date.now());
         setCurrentStep('verification');
       }
     } catch (error) {
@@ -650,7 +654,11 @@ function CustomerSignupForm() {
         email={formData.email}
         phone={formData.countryCode + formData.phone}
         onVerificationSuccess={handleVerificationSuccess}
-        onBack={() => setCurrentStep('form')}
+        onContactChange={(contact) => {
+          const { countryCode, national } = splitSignupPhone(contact.phone, formData.countryCode);
+          setFormData((prev) => ({ ...prev, email: contact.email, countryCode, phone: national }));
+        }}
+        codesSentAt={codesSentAt}
       />
     );
   }

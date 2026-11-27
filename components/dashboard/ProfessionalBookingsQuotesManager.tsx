@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, FileText, GitCompareArrows, Loader2, Plus, RefreshCw, Search } from "lucide-react"
 import QuoteComparisonModal from "@/components/dashboard/QuoteComparisonModal"
 import BookingTimelineBoard from "@/components/dashboard/BookingTimelineBoard"
@@ -704,9 +704,90 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
     return null
   }
 
+  // Rows (with their loading, error, empty and load-more states): the
+  // "Booking overview" view in bookings mode, the whole list in quotes mode.
+  const listSection = (
+    <>
+        {isLoading && (
+          <Card>
+            <CardContent className="py-8 text-center text-gray-500">
+              {t("common.loading")}
+            </CardContent>
+          </Card>
+        )}
+
+        {!isLoading && error && (
+          <Card className="border border-rose-100 bg-rose-50">
+            <CardContent className="py-4 text-sm text-rose-700">
+              {error}
+            </CardContent>
+          </Card>
+        )}
+
+        {!isLoading && !error && filteredBookings.length > 0 && (
+          <div className="space-y-4">
+            {mode === "quotes" ? (
+              <SharedQuotesTable
+                bookings={filteredBookings}
+                viewerRole="professional"
+                formatMoney={formatMoney}
+                intl={intl}
+                statusLabel={statusLabel}
+                chatLabel={t("customerDashboard.chat")}
+                acceptPayLabel={t("customerDashboard.acceptPay")}
+                selection={{
+                  isSelected: (id) => selectedQuoteIds.has(id),
+                  onToggle: (booking) => toggleQuoteSelection(booking._id),
+                  label: () => t("professionalManager.selectForComparison"),
+                }}
+                viewLabel={t("common.view")}
+              />
+            ) : (
+              <SharedBookingsTable
+                bookings={filteredBookings}
+                viewerRole="professional"
+                formatMoney={formatMoney}
+                intl={intl}
+                statusLabel={statusLabel}
+                invoiceLabel={t("customerDashboard.invoice")}
+                downloadLabel={t("customerDashboard.download")}
+                chatLabel={t("customerDashboard.chat")}
+                warrantyLabel={t("customerDashboard.openWarrantyClaim")}
+                payNowLabel={t("customerDashboard.payNow")}
+                viewLabel={t("common.view")}
+              />
+            )}
+          </div>
+        )}
+
+        {!isLoading && !error && filteredBookings.length === 0 && !hasMore && (
+          <Card className="border-dashed">
+            <CardContent className="py-8 text-center text-gray-500">
+              {pageCopy.empty}
+            </CardContent>
+          </Card>
+        )}
+
+        {!isLoading && !error && hasMore && (
+          <div className="flex flex-col items-center gap-2">
+            {loadMoreError && (
+              <p className="text-sm text-rose-600">{loadMoreError}</p>
+            )}
+            <Button
+              variant="outline"
+              onClick={() => fetchBookings(currentPage + 1, true)}
+              disabled={isLoadingMore}
+            >
+              {isLoadingMore ? t("common.loading") : t("professionalManager.loadMore")}
+            </Button>
+          </div>
+        )}
+    </>
+  )
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-6xl mx-auto pt-20 space-y-6">
+      <Tabs defaultValue="overview" className="max-w-6xl mx-auto pt-20 space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Button variant="outline" onClick={() => router.push("/dashboard")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -743,6 +824,14 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
           <h1 className="text-3xl font-bold text-gray-900">{pageCopy.title}</h1>
           <p className="text-gray-600 mt-1">{pageCopy.description}</p>
         </div>
+
+        {/* FT2-13: overview table and timeline as two views instead of one long page. */}
+        {mode === "bookings" && (
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="overview">{t("professionalManager.views.overview")}</TabsTrigger>
+            <TabsTrigger value="timeline">{t("professionalManager.views.timeline")}</TabsTrigger>
+          </TabsList>
+        )}
 
         {mode === "bookings" && <RefundRequestsPanel />}
 
@@ -826,23 +915,13 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
           </div>
         </div>
 
-        {isLoading && (
-          <Card>
-            <CardContent className="py-8 text-center text-gray-500">
-              {t("common.loading")}
-            </CardContent>
-          </Card>
-        )}
-
-        {!isLoading && error && (
-          <Card className="border border-rose-100 bg-rose-50">
-            <CardContent className="py-4 text-sm text-rose-700">
-              {error}
-            </CardContent>
-          </Card>
-        )}
-
-        {mode === "bookings" && (
+        {mode === "bookings" ? (
+          <>
+            <TabsContent value="overview" className="space-y-6">
+              {listSection}
+            </TabsContent>
+            <TabsContent value="timeline">
+        {(
           timelineState === "loading" ? (
             <Card>
               <CardContent className="py-8 text-center text-gray-500">
@@ -868,74 +947,10 @@ export default function ProfessionalBookingsQuotesManager({ mode }: Professional
           )
         )}
 
-        {!isLoading && !error && filteredBookings.length > 0 && (
-          <div className="space-y-4">
-            {mode === "quotes" && (
-              <div className="flex flex-wrap gap-2">
-                {filteredBookings.map((booking) => (
-                  <label key={booking._id} className="flex items-center gap-1.5 text-xs text-gray-600">
-                    <Checkbox
-                      checked={selectedQuoteIds.has(booking._id)}
-                      onCheckedChange={() => toggleQuoteSelection(booking._id)}
-                      aria-label={t("professionalManager.selectForComparison")}
-                    />
-                    {booking.bookingNumber || booking._id}
-                  </label>
-                ))}
-              </div>
-            )}
-            {mode === "quotes" ? (
-              <SharedQuotesTable
-                bookings={filteredBookings}
-                viewerRole="professional"
-                formatMoney={formatMoney}
-                intl={intl}
-                statusLabel={statusLabel}
-                chatLabel={t("customerDashboard.chat")}
-                acceptPayLabel={t("customerDashboard.acceptPay")}
-                viewLabel={t("common.view")}
-              />
-            ) : (
-              <SharedBookingsTable
-                bookings={filteredBookings}
-                viewerRole="professional"
-                formatMoney={formatMoney}
-                intl={intl}
-                statusLabel={statusLabel}
-                invoiceLabel={t("customerDashboard.invoice")}
-                downloadLabel={t("customerDashboard.download")}
-                chatLabel={t("customerDashboard.chat")}
-                warrantyLabel={t("customerDashboard.openWarrantyClaim")}
-                payNowLabel={t("customerDashboard.payNow")}
-                viewLabel={t("common.view")}
-              />
-            )}
-          </div>
-        )}
-
-        {!isLoading && !error && filteredBookings.length === 0 && !hasMore && (
-          <Card className="border-dashed">
-            <CardContent className="py-8 text-center text-gray-500">
-              {pageCopy.empty}
-            </CardContent>
-          </Card>
-        )}
-
-        {!isLoading && !error && hasMore && (
-          <div className="flex flex-col items-center gap-2">
-            {loadMoreError && (
-              <p className="text-sm text-rose-600">{loadMoreError}</p>
-            )}
-            <Button
-              variant="outline"
-              onClick={() => fetchBookings(currentPage + 1, true)}
-              disabled={isLoadingMore}
-            >
-              {isLoadingMore ? t("common.loading") : t("professionalManager.loadMore")}
-            </Button>
-          </div>
-        )}
-      </div>
+            </TabsContent>
+          </>
+        ) : listSection}
+      </Tabs>
 
       {/* Create Direct Quote Modal */}
       <Dialog open={showCreateQuoteModal} onOpenChange={setShowCreateQuoteModal}>

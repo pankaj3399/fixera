@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ProfessionalCard from '@/components/search/ProfessionalCard';
 import ProjectCard from '@/components/search/ProjectCard';
 import SearchFilters, { type SearchFiltersState, type ProjectFacetCounts } from '@/components/search/SearchFilters';
+import SearchSortSelect from '@/components/search/SearchSortSelect';
 import { useFilterOptions } from '@/hooks/useFilterOptions';
 import { useCustomerPricing } from '@/hooks/useCustomerPricing';
 import { useFavoriteStatus } from '@/hooks/useFavoriteStatus';
@@ -494,19 +495,30 @@ function SearchPageContent() {
           </p>
         </div>
 
-        {/* Search Type Tabs */}
-        <Tabs value={searchType} onValueChange={(val) => handleSearchTypeChange(val as 'professionals' | 'projects')} className="mb-8">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
-            <TabsTrigger value="professionals">{t('page.tabProfessionals')}</TabsTrigger>
-            <TabsTrigger value="projects">{t('page.tabProjects')}</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {/* Search Type Tabs + sorting (top right, FT1-11) */}
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <Tabs value={searchType} onValueChange={(val) => handleSearchTypeChange(val as 'professionals' | 'projects')} className="w-full max-w-md">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="professionals">{t('page.tabProfessionals')}</TabsTrigger>
+              <TabsTrigger value="projects">{t('page.tabProjects')}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <SearchSortSelect
+            value={filters.sortBy}
+            onChange={(value) => handleFilterChange('sortBy', value)}
+            searchType={searchType}
+          />
+        </div>
 
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Filters Sidebar */}
           <aside className="lg:col-span-1">
-            <div className="sticky top-24">
+            {/* FT1-11: the long filter list scrolls on its own instead of stretching the page. */}
+            <div
+              data-testid="search-filters-scroll"
+              className="lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto lg:overscroll-contain rounded-lg [scrollbar-gutter:stable]"
+            >
               <SearchFilters
                 filters={filters}
                 onFilterChange={handleFilterChange}

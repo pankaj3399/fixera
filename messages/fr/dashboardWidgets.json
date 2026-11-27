@@ -389,7 +389,12 @@
     },
     "invoice": "Facture",
     "download": "Télécharger",
-    "acceptPay": "Accepter et payer"
+    "acceptPay": "Accepter et payer",
+    "bookingViews": {
+      "overview": "Aperçu des réservations",
+      "timeline": "Chronologie"
+    },
+    "timelineEmpty": "Aucune réservation active à afficher dans la chronologie pour le moment."
   },
   "professionalManager": {
     "page": {
@@ -450,7 +455,11 @@
       "loadBookings": "Impossible de charger les réservations."
     },
     "filterByStatus": "Filtrer par statut",
-    "filterByService": "Filtrer par service"
+    "filterByService": "Filtrer par service",
+    "views": {
+      "overview": "Aperçu des réservations",
+      "timeline": "Chronologie"
+    }
   },
   "tables": {
     "colProject": "Projet / sous-projet",
@@ -471,8 +480,7 @@
     "colPrice": "Prix",
     "colStatus": "Statut",
     "colInvoice": "Facture",
-    "colPayoutDate": "Date de versement",
-    "colPayoutRefund": "Versement / remboursement",
+    "colPayout": "Versement : date / montant / remboursement",
     "colActions": "Actions rapides",
     "colDetails": "Détails",
     "bookingsTableLabel": "Réservations",
@@ -490,7 +498,8 @@
     "durationUnits": {
       "hours": "{count, plural, one {# heure} other {# heures}}",
       "days": "{count, plural, one {# jour} other {# jours}}"
-    }
+    },
+    "colCompare": "Comparer"
   },
   "levelUp": {
     "customerTitle": "Niveau supérieur !",

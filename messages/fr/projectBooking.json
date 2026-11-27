@@ -64,7 +64,17 @@
     "usageHintWithUnit": "Indiquez votre meilleure estimation en {unit} pour que nous puissions calculer un prix indicatif.",
     "estimatedPrice": "Prix estimé :",
     "continueHint": "Bon choix ! Cliquez sur <strong>Suivant</strong> pour choisir votre date de début souhaitée.",
-    "hoursDeterminedByCustomer": "Heures (déterminées par le client)"
+    "hoursDeterminedByCustomer": "Heures (déterminées par le client)",
+    "durationPerUnit": "{duration} par {unit}",
+    "perUnitNames": {
+      "hour": "heure",
+      "day": "jour",
+      "meter": "mètre",
+      "m2": "m²",
+      "m3": "m³",
+      "room": "pièce",
+      "piece": "article"
+    }
   },
   "schedule": {
     "rfqTitle": "Avant de réserver",
