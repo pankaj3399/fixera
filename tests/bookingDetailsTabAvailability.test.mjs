@@ -57,6 +57,12 @@ test('BPQ-1: the quotation tab is unavailable only when the booking never had a 
   const direct = directBooking()
   assert.equal(bookingHadQuotation(direct, { quotation: { status: 'accepted', versions: [] } }), false)
   assert.deepEqual(unavailableDetailTabs(direct, null), { quotation: 'no_quotation' })
+  // Legacy direct checkouts started their history at quote_accepted without ever being quoted.
+  const legacyDirect = directBooking({ statusHistory: [{ status: 'quote_accepted' }, { status: 'booked' }, { status: 'rescheduling_requested' }, { status: 'booked' }] })
+  assert.equal(bookingHadQuotation(legacyDirect, null), false)
+  assert.deepEqual(unavailableDetailTabs(legacyDirect, null), { quotation: 'no_quotation' })
+  assert.equal(bookingHadQuotation({ status: 'quote_accepted', statusHistory: [{ status: 'quote_accepted' }] }, null), false)
+  assert.equal(bookingHadQuotation({ status: 'booked', statusHistory: [{ status: 'rfq' }, { status: 'quoted' }, { status: 'quote_accepted' }] }, null), true)
 
   assert.equal(bookingHadQuotation({ status: 'rfq' }, null), true)
   assert.equal(bookingHadQuotation({ status: 'booked', statusHistory: [{ status: 'quoted' }] }, null), true)

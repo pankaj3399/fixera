@@ -41,6 +41,12 @@ type TabAvailabilityDetails = Pick<BookingDetailsDto, "quotation" | "payments"> 
 
 /** Statuses only a quotation flow (RFQ or professional quote) passes through. */
 const QUOTATION_FLOW_STATUSES = new Set(["rfq", "rfq_accepted", "draft_quote", "quoted", "quote_accepted", "quote_rejected"]);
+/**
+ * Statuses that prove a quotation existed. `quote_accepted` is excluded: the
+ * direct-checkout flow also passes through it (legacy bookings start their
+ * history with it), while a real quotation is always `quoted` first.
+ */
+const QUOTATION_EVIDENCE_STATUSES = new Set(["rfq", "rfq_accepted", "draft_quote", "quoted", "quote_rejected"]);
 /** Statuses that exist only after the booking was booked (paid/authorized). */
 const BOOKED_STATUSES = new Set([
   "booked",
@@ -74,8 +80,8 @@ export function bookingHadQuotation(booking: TabAvailabilityBooking, details?: T
   if (!booking) return false;
   if (booking.quotationNumber || (booking.quoteVersions?.length ?? 0) > 0) return true;
   if (booking.rfqResponse?.action) return true;
-  if (booking.status && QUOTATION_FLOW_STATUSES.has(booking.status)) return true;
-  if ((booking.statusHistory || []).some((entry) => entry?.status && QUOTATION_FLOW_STATUSES.has(entry.status))) return true;
+  if (booking.status && QUOTATION_EVIDENCE_STATUSES.has(booking.status)) return true;
+  if ((booking.statusHistory || []).some((entry) => entry?.status && QUOTATION_EVIDENCE_STATUSES.has(entry.status))) return true;
   const quote = booking.quote;
   return Boolean(quote && !isCheckoutSnapshotQuote(quote) && (quote.submittedAt || quote.description));
 }
