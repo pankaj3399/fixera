@@ -211,19 +211,26 @@ export function withoutRetainedDurations<P extends object>(packages: P[] | undef
 
 /**
  * What a package card shows for its execution duration: "determined by
- * customer" for customer-set hours (no stored value by design), a finite
- * stored duration otherwise, or nothing.
+ * customer" for customer-set hours (no stored value by design), the duration
+ * of ONE configured unit for per-unit packages ("2 hours per m²", FT1 6B: the
+ * booked quantity multiplies it), a finite stored duration otherwise, or
+ * nothing.
  */
 export type PackageDurationDisplay =
   | { kind: 'customer_hours' }
+  | { kind: 'per_unit'; value: number; unit: DurationUnit; pricingUnit: string }
   | { kind: 'duration'; value: number; unit: DurationUnit }
   | null
 
 export function packageDurationDisplay(
   pkg: { pricing?: PricingLike; executionDuration?: { value?: unknown; unit?: string } | null } | null | undefined,
 ): PackageDurationDisplay {
-  if (packageDurationMode(pkg?.pricing) === 'customer_hours') return { kind: 'customer_hours' }
+  const mode = packageDurationMode(pkg?.pricing)
+  if (mode === 'customer_hours') return { kind: 'customer_hours' }
   const value = pkg?.executionDuration?.value
   if (typeof value !== 'number' || !Number.isFinite(value)) return null
-  return { kind: 'duration', value, unit: pkg?.executionDuration?.unit === 'days' ? 'days' : 'hours' }
+  const unit: DurationUnit = pkg?.executionDuration?.unit === 'days' ? 'days' : 'hours'
+  const pricingUnit = typeof pkg?.pricing?.unit === 'string' ? pkg.pricing.unit.trim() : ''
+  if (mode === 'per_unit' && pricingUnit) return { kind: 'per_unit', value, unit, pricingUnit }
+  return { kind: 'duration', value, unit }
 }

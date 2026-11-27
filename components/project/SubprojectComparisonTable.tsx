@@ -13,6 +13,8 @@ import { useCustomerPricing } from '@/hooks/useCustomerPricing'
 import { useCurrency } from '@/contexts/CurrencyContext'
 import type { PublicProjectDto, ProjectSubproject } from '@/types/project'
 import { PREDEFINED_ITEM_KEY_BY_ENGLISH_NAME } from '@/components/professional/project-wizard/Step2Subprojects'
+import { usePackageDurationText } from '@/components/search/PackageDurationLabel'
+import { packageDurationMode } from '@/lib/packageDuration'
 
 const SUFFIXLESS_PRICE_MODEL_PREFIXES = ['rfq', 'fixed', 'total', 'unit'] as const
 
@@ -120,6 +122,7 @@ export default function SubprojectComparisonTable({
   }
 
   const currentSubproject = subprojects[selectedIndex]
+  const currentDurationText = usePackageDurationText(currentSubproject)
   const effectivePricingType = (sp: (typeof subprojects)[number]) =>
     sp.pricing?.type ?? (priceModel ? 'unit' : 'fixed')
   const repeatBuyerEligible = repeatBuyerEligibility?.eligible === true
@@ -396,7 +399,12 @@ export default function SubprojectComparisonTable({
                   {currentSubproject.executionDuration && (
                     <div className="flex items-center text-sm text-gray-600">
                       <Clock className="w-4 h-4 mr-2 text-gray-500" />
-                      <span>{t('comparison.delivery', { duration: formatDuration(currentSubproject.executionDuration) })}</span>
+                      <span>
+                        {/* FT1 6B: per-unit packages say "x hours per <unit>"; the booked quantity multiplies it. */}
+                        {currentDurationText && currentSubproject.pricing?.type === 'unit' && packageDurationMode(currentSubproject.pricing) !== 'per_booking'
+                          ? t('comparison.execution', { duration: currentDurationText })
+                          : t('comparison.delivery', { duration: formatDuration(currentSubproject.executionDuration) })}
+                      </span>
                     </div>
                   )}
                   {currentSubproject.warrantyPeriod && (

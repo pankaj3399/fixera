@@ -151,6 +151,7 @@
     "returningCustomerPrice": "Prijs voor terugkerende klanten beschikbaar",
     "memberSavings": "{level}-lidvoordeel toegepast",
     "delivery": "{duration} levertijd",
+    "execution": "Uitvoering: {duration}",
     "warranty": "{duration} garantie",
     "noWarranty": "Geen garantie",
     "whatsIncluded": "Inbegrepen:",

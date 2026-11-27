@@ -151,6 +151,7 @@
     "returningCustomerPrice": "Returning customer price available",
     "memberSavings": "{level} member savings applied",
     "delivery": "{duration} delivery",
+    "execution": "Execution: {duration}",
     "warranty": "{duration} warranty",
     "noWarranty": "No warranty",
     "whatsIncluded": "What's Included:",

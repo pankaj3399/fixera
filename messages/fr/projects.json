@@ -151,6 +151,7 @@
     "returningCustomerPrice": "Tarif client fidèle disponible",
     "memberSavings": "Réduction membre {level} appliquée",
     "delivery": "Livraison sous {duration}",
+    "execution": "Exécution : {duration}",
     "warranty": "{duration} de garantie",
     "noWarranty": "Aucune garantie",
     "whatsIncluded": "Ce qui est inclus :",
