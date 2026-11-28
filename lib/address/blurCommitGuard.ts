@@ -1,8 +1,8 @@
 /**
  * Blur-vs-selection ordering guard for the shared address autocomplete.
  *
- * Google's suggestion dropdown commits on mousedown, which fires before the
- * input blur and before `place_changed`. An async blur-validation path must
+ * Google's legacy suggestion dropdown commits the hovered row in its own
+ * input-blur handler; `place_changed` follows asynchronously. An async blur-validation path must
  * therefore never overwrite a selection that is in flight or already
  * committed — `place_changed` is the single writer of `onChange(placeData)`.
  * All signup/onboarding/booking/project-wizard callers share this rule

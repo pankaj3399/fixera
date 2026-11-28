@@ -52,9 +52,11 @@ export default function AddressAutocomplete({
   const inputVersionRef = useRef(0);
   const selectionVersionRef = useRef(0);
   // True while a pointer is down inside the Google suggestion dropdown. The
-  // dropdown commits on mousedown (before input blur), so a blur observed in
-  // this window belongs to a selection in flight and must be skipped — the
-  // place_changed commit below is the single writer.
+  // widget commits the hovered suggestion in its own input-blur handler and
+  // fires place_changed after that, so a blur observed in this window belongs
+  // to a selection in flight and must wait — the place_changed commit below is
+  // the single writer. The press itself must never be cancelled: without the
+  // blur Google selects nothing (FT2-6A follow-up).
   const dropdownPointerDownRef = useRef(false);
   const { isLoaded, loadGoogleMaps, validateAddress, geocodeAddress } = useGoogleMaps();
   const hasInitialized = useRef(false);
@@ -234,8 +236,8 @@ export default function AddressAutocomplete({
   }, [useCompanyAddress, companyAddress]);
 
   // Track pointer-downs inside the Google suggestion dropdown so the
-  // subsequent blur is recognized as a selection in flight (the dropdown
-  // commits on mousedown, before blur/place_changed ordering is guaranteed).
+  // subsequent blur is recognized as a selection in flight (Google commits on
+  // that blur; place_changed follows asynchronously). Observe only.
   useEffect(() => {
     if (useCompanyAddress || typeof document === 'undefined') return;
     const onPointerDown = (event: Event) => {

@@ -1384,8 +1384,6 @@
     "responseDeadline": "Veuillez répondre avant le {date}",
     "refundAmount": "Montant du remboursement",
     "denyReason": "Motif du refus",
-    "approve": "Approuver l'annulation",
-    "reject": "Rejeter la demande",
     "status": {
       "pending": "En attente",
       "processing": "En cours",
@@ -1394,18 +1392,7 @@
       "approved": "Approuvé",
       "denied": "Refusé"
     },
-    "toasts": {
-      "respondFailed": "Échec de la réponse à la demande d'annulation.",
-      "approved": "Annulation approuvée et remboursement effectué.",
-      "rejected": "Demande d'annulation rejetée."
-    },
-    "adminNote": "Note admin : {note}",
-    "confirmApproveTitle": "Approuver cette annulation ?",
-    "confirmApproveFull": "Le client est remboursé intégralement et la réservation est annulée. Cette action est irréversible.",
-    "confirmApproveAmount": "Le client est remboursé de {amount} et la réservation est annulée. Cette action est irréversible.",
-    "confirmApprovePartialHint": "Pour proposer plutôt un remboursement partiel, utilisez Négocier dans Tableau de bord → Demandes de remboursement.",
-    "confirmApproveButton": "Oui, approuver et rembourser",
-    "confirmApproveCancel": "Retour"
+    "adminNote": "Note admin : {note}"
   },
   "rescheduleRequest": {
     "title": "Demande de report",

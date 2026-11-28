@@ -6,11 +6,9 @@ import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
 import { authFetch } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, RotateCcw, CheckCircle, XCircle, Scale } from "lucide-react"
-import { toast } from "sonner"
+import { Loader2, RotateCcw } from "lucide-react"
+import RefundRequestActions from "@/components/booking/RefundRequestActions"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
 
@@ -37,10 +35,6 @@ export default function RefundRequestsPanel() {
   const { intl } = useFormatLocale()
   const [requests, setRequests] = useState<RefundRequest[]>([])
   const [loading, setLoading] = useState(true)
-  const [busyId, setBusyId] = useState<string | null>(null)
-  const [counterFor, setCounterFor] = useState<string | null>(null)
-  const [counterAmount, setCounterAmount] = useState("")
-  const [note, setNote] = useState("")
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const fmtDate = useCallback(
@@ -67,52 +61,6 @@ export default function RefundRequestsPanel() {
   }, [getErrorText, t])
 
   useEffect(() => { load() }, [load])
-
-  const respond = async (req: RefundRequest, decision: 'approve' | 'counter' | 'reject') => {
-    const bookingId = req.booking?._id
-    if (!bookingId) return
-    if (decision === 'approve' && !window.confirm(t('refundRequests.confirmApprove'))) return
-    if (decision === 'reject' && !window.confirm(t('refundRequests.confirmReject'))) return
-
-    let amount: number | undefined
-    if (decision === 'counter') {
-      amount = Number(counterAmount)
-      const max = req.booking?.payment?.amount ?? 0
-      if (!Number.isFinite(amount) || amount < 1 || amount > max) {
-        toast.error(t('refundRequests.counterRange', {
-          max: formatMoney(max, req.booking?.payment?.currency),
-        }))
-        return
-      }
-    }
-
-    setBusyId(req._id)
-    try {
-      const res = await authFetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/cancellation/respond`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ decision, amount, note: decision === 'counter' ? (note.trim() || undefined) : undefined }),
-      })
-      const json = await res.json()
-      if (!res.ok || !json?.success) {
-        toast.error(getErrorText(json, t('refundRequests.respondFailed')))
-        return
-      }
-      toast.success(
-        decision === 'approve' ? t('refundRequests.approved')
-        : decision === 'counter' ? t('refundRequests.counterSent')
-        : t('refundRequests.rejected')
-      )
-      setCounterFor(null)
-      setCounterAmount("")
-      setNote("")
-      await load()
-    } catch {
-      toast.error(t('refundRequests.respondFailed'))
-    } finally {
-      setBusyId(null)
-    }
-  }
 
   if (loading) {
     return (
@@ -145,7 +93,6 @@ export default function RefundRequestsPanel() {
       </CardHeader>
       <CardContent className="space-y-3">
         {requests.map((req) => {
-          const busy = busyId === req._id
           const price = req.booking?.payment?.amount ?? 0
           const currency = req.booking?.payment?.currency || 'EUR'
           return (
@@ -171,30 +118,14 @@ export default function RefundRequestsPanel() {
               )}
               {req.status === 'negotiating' ? (
                 <p className="text-xs text-amber-700">{t('refundRequests.counterOfferSent', { amount: formatMoney(req.counterOfferAmount ?? 0, currency) })}</p>
-              ) : counterFor === req._id ? (
-                <div className="space-y-2">
-                  <Input type="number" placeholder={t('refundRequests.counterPlaceholder', { amount: formatMoney(price, currency) })} value={counterAmount} onChange={(e) => setCounterAmount(e.target.value)} />
-                  <Textarea placeholder={t('refundRequests.notePlaceholder')} value={note} onChange={(e) => setNote(e.target.value)} className="min-h-[60px]" />
-                  <div className="flex gap-2">
-                    <Button size="sm" disabled={busy} onClick={() => respond(req, 'counter')}>
-                      {busy ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Scale className="h-3 w-3 mr-1" />}{t('refundRequests.sendOffer')}
-                    </Button>
-                    <Button size="sm" variant="outline" disabled={busy} onClick={() => { setCounterFor(null); setCounterAmount(""); setNote("") }}>{t('common.cancel')}</Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-2 pt-1">
-                  <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700" disabled={busy} onClick={() => respond(req, 'approve')}>
-                    <CheckCircle className="h-3 w-3 mr-1" />{t('refundRequests.approveFull')}
-                  </Button>
-                  <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={() => { setCounterFor(req._id); setCounterAmount(""); setNote("") }}>
-                    <Scale className="h-3 w-3 mr-1" />{t('refundRequests.negotiate')}
-                  </Button>
-                  <Button size="sm" variant="outline" className="h-7 text-xs border-rose-200 text-rose-700 hover:bg-rose-50" disabled={busy} onClick={() => respond(req, 'reject')}>
-                    <XCircle className="h-3 w-3 mr-1" />{t('refundRequests.reject')}
-                  </Button>
-                </div>
-              )}
+              ) : req.booking?._id ? (
+                <RefundRequestActions
+                  bookingId={req.booking._id}
+                  maxAmount={price}
+                  currency={currency}
+                  onResolved={load}
+                />
+              ) : null}
             </div>
           )
         })}
