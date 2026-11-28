@@ -63,11 +63,8 @@ function compileModule(file, mocks = {}) {
   return exports
 }
 function mountAddressAutocomplete({ validateAddress = async () => false, geocodeAddress = async () => null } = {}) {
-  // Fresh module state per mount: the suggestion-press guard is reference
-  // counted per module and must install on this mount's document.
   const placesExports = compileModule('../lib/address/placesAutocomplete.ts')
-  // Every listener per event type is kept (the shared guard and the
-  // component's dropdown tracker both listen to mousedown).
+  // Every listener per event type is kept.
   const events = {}
   const listeners = {}
   let place = null
@@ -129,11 +126,11 @@ test('a dropdown pointer-down that commits no place still validates the typed te
     let input = ui.render()
     input.props.onChange({ target: { value: 'Typed street 1' } })
     input = ui.render()
-    // Both document listeners are installed: the shared guard and the tracker.
-    assert.equal(ui.events.mousedown.length, 2)
+    // Only the component's dropdown tracker listens; nothing cancels the press
+    // (Google commits a suggestion on the input's blur).
+    assert.equal(ui.events.mousedown.length, 1)
     // Scrollbar/footer pointer-down inside .pac-container: no place_changed.
-    // The guard keeps focus in the input by cancelling the press.
-    assert.equal(ui.dispatch('mousedown', ui.dropdownTarget).defaultPrevented, true)
+    assert.equal(ui.dispatch('mousedown', ui.dropdownTarget).defaultPrevented, false)
     await input.props.onBlur()
     assert.deepEqual(ui.validations, [false])
     // A fresh edit keeps validating on blur.
@@ -161,7 +158,7 @@ test('a suggestion click commits the selected place once and the blur never over
     input = ui.render()
     // A press outside the dropdown is never cancelled.
     assert.equal(ui.dispatch('mousedown', ui.outsideTarget).defaultPrevented, false)
-    assert.equal(ui.dispatch('mousedown', ui.dropdownTarget).defaultPrevented, true)
+    assert.equal(ui.dispatch('mousedown', ui.dropdownTarget).defaultPrevented, false)
     const blur = input.props.onBlur()
     // Google commits the suggestion after the blur, within the grace window.
     ui.setPlace({

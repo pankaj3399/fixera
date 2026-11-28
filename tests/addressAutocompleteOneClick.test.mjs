@@ -5,50 +5,45 @@ import { test } from 'node:test'
 
 register('./swc-loader.mjs', import.meta.url)
 
-const {
-  attachPlacesAutocomplete,
-  isInsideSuggestionDropdown,
-  keepFocusOnSuggestionPress,
-  retainSuggestionPressGuard,
-} = await import('../lib/address/placesAutocomplete.ts')
+const { attachPlacesAutocomplete } = await import('../lib/address/placesAutocomplete.ts')
 
 const src = (file) => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')
 
-const inDropdown = { closest: (selector) => (selector === '.pac-container' ? {} : null) }
-const outside = { closest: () => null }
-
-test('a press on a Google suggestion keeps focus in the input (no blur before selection)', () => {
-  let prevented = 0
-  keepFocusOnSuggestionPress({ target: inDropdown, preventDefault: () => { prevented += 1 } })
-  assert.equal(prevented, 1)
-  keepFocusOnSuggestionPress({ target: outside, preventDefault: () => { prevented += 1 } })
-  keepFocusOnSuggestionPress({ target: null, preventDefault: () => { prevented += 1 } })
-  keepFocusOnSuggestionPress({ target: {}, preventDefault: () => { prevented += 1 } })
-  assert.equal(prevented, 1, 'presses elsewhere keep their default')
-  assert.equal(isInsideSuggestionDropdown(inDropdown), true)
-  assert.equal(isInsideSuggestionDropdown(outside), false)
-})
-
-test('the guard is one shared capture listener, removed when the last field unmounts', () => {
+// FT2-6A follow-up (round 3): Google's legacy widget has no click handler on
+// its suggestion rows; mouseover records the row and the input's blur commits
+// it. Cancelling the mousedown on the dropdown kept focus in the input, so a
+// click on a suggestion never selected anything.
+test('attaching a widget installs no document listener that could cancel the suggestion press', () => {
+  const previousDocument = globalThis.document
   const calls = []
-  const target = {
+  globalThis.document = {
     addEventListener: (...args) => calls.push(['add', ...args]),
     removeEventListener: (...args) => calls.push(['remove', ...args]),
   }
-  const releaseA = retainSuggestionPressGuard(target)
-  const releaseB = retainSuggestionPressGuard(target)
-  assert.equal(calls.filter(([kind]) => kind === 'add').length, 1)
-  const [, type, listener, capture] = calls[0]
-  assert.equal(type, 'mousedown')
-  assert.equal(capture, true)
-  let prevented = false
-  listener({ target: inDropdown, preventDefault: () => { prevented = true } })
-  assert.equal(prevented, true)
-  releaseA()
-  releaseA()
-  assert.equal(calls.filter(([kind]) => kind === 'remove').length, 0)
-  releaseB()
-  assert.equal(calls.filter(([kind]) => kind === 'remove').length, 1)
+  try {
+    const api = {
+      create: () => ({ addListener: () => {} }),
+      clearListeners: () => {},
+    }
+    const { detach } = attachPlacesAutocomplete(api, {}, () => undefined)
+    detach()
+    assert.deepEqual(calls, [])
+  } finally {
+    globalThis.document = previousDocument
+  }
+})
+
+test('no address field cancels a press inside the Google dropdown (blur must reach the widget)', () => {
+  for (const file of [
+    'lib/address/placesAutocomplete.ts',
+    'hooks/usePlacesAutocomplete.ts',
+    'components/search/LocationAutocomplete.tsx',
+    'components/professional/project-wizard/AddressAutocomplete.tsx',
+  ]) {
+    const source = src(file)
+    assert.doesNotMatch(source, /preventDefault\(/, file)
+    assert.doesNotMatch(source, /SuggestionPressGuard|keepFocusOnSuggestionPress/, file)
+  }
 })
 
 test('one widget per input: a new handler is used without re-creating the widget', () => {
