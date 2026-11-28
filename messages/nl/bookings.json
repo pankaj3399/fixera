@@ -1384,8 +1384,6 @@
     "responseDeadline": "Reageer vóór {date}",
     "refundAmount": "Terugbetalingsbedrag",
     "denyReason": "Reden voor afwijzing",
-    "approve": "Annulering goedkeuren",
-    "reject": "Verzoek afwijzen",
     "status": {
       "pending": "In afwachting",
       "processing": "In behandeling",
@@ -1394,18 +1392,7 @@
       "approved": "Goedgekeurd",
       "denied": "Geweigerd"
     },
-    "toasts": {
-      "respondFailed": "Reageren op het annuleringsverzoek is mislukt.",
-      "approved": "Annulering goedgekeurd en terugbetaling uitgevoerd.",
-      "rejected": "Annuleringsverzoek afgewezen."
-    },
-    "adminNote": "Beheerdersnotitie: {note}",
-    "confirmApproveTitle": "Deze annulering goedkeuren?",
-    "confirmApproveFull": "De klant krijgt het volledige bedrag terug en de boeking wordt geannuleerd. Dit kan niet ongedaan worden gemaakt.",
-    "confirmApproveAmount": "De klant krijgt {amount} terug en de boeking wordt geannuleerd. Dit kan niet ongedaan worden gemaakt.",
-    "confirmApprovePartialHint": "Wil je liever een gedeeltelijke terugbetaling voorstellen? Gebruik Onderhandelen onder Dashboard → Terugbetalingsverzoeken.",
-    "confirmApproveButton": "Ja, goedkeuren en terugbetalen",
-    "confirmApproveCancel": "Terug"
+    "adminNote": "Beheerdersnotitie: {note}"
   },
   "rescheduleRequest": {
     "title": "Verzoek tot verzetten",

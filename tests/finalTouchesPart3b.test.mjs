@@ -31,7 +31,7 @@ function renderCard(element) {
   return renderToStaticMarkup(
     React.createElement(
       NextIntlClientProvider,
-      { locale: 'en', messages: { bookings: bookingsEn, common: commonEn }, timeZone: 'UTC' },
+      { locale: 'en', messages: { bookings: bookingsEn, common: commonEn, dashboardWidgets: dashboardWidgetsEn }, timeZone: 'UTC' },
       React.createElement(
         CurrencyProvider,
         { initialCurrency: 'EUR', initialRates: { EUR: 1 }, refreshRates: false },
@@ -92,13 +92,34 @@ test('CancellationRequestCard renders status, reason, actor and professional act
   assert.match(html, /Pending/)
   assert.match(html, /Customer asked to cancel/)
   assert.match(html, /Jane/)
-  assert.match(html, /Approve cancellation/)
-  assert.match(html, /Reject request/)
+  // FT3 #3A: the same actions and labels as the dashboard's refund requests.
+  assert.match(html, />Approve full refund</)
+  assert.match(html, />Negotiate</)
+  assert.match(html, />Reject</)
+  assert.doesNotMatch(html, /Approve cancellation|Reject request/)
 
   const customerHtml = renderCard(
     React.createElement(CancellationRequestCard, { bookingId: 'b1', request, viewerRole: 'customer' })
   )
-  assert.doesNotMatch(customerHtml, /Approve cancellation/)
+  assert.doesNotMatch(customerHtml, /Approve full refund|Negotiate/)
+})
+
+test('booking card and dashboard panel share the refund request actions (FT3 #3A)', () => {
+  const card = readSource('../components/booking/CancellationRequestCard.tsx')
+  const panel = readSource('../components/dashboard/RefundRequestsPanel.tsx')
+  const actions = readSource('../components/booking/RefundRequestActions.tsx')
+  for (const source of [card, panel]) {
+    assert.match(source, /import RefundRequestActions from "@\/components\/booking\/RefundRequestActions"/)
+    assert.match(source, /<RefundRequestActions/)
+    assert.doesNotMatch(source, /cancellation\/respond/)
+  }
+  assert.match(actions, /cancellation\/respond/)
+  for (const key of ['approveFull', 'negotiate', 'reject', 'sendOffer', 'counterRange']) {
+    assert.match(actions, new RegExp(`refundRequests\\.${key}`))
+    assert.equal(typeof dashboardWidgetsEn.refundRequests[key], 'string')
+  }
+  const page = readSource('../app/[ctx]/(pages)/bookings/[id]/page.tsx')
+  assert.match(page, /maxCounterAmount=\{booking\.payment\?\.amount \?\? booking\.quote\?\.amount\}/)
 })
 
 // Review item 3: the admin-authored resolution note renders for admins only.
@@ -233,7 +254,8 @@ test('booking page wires cancellation/reschedule cards, warranty clarification a
 })
 
 test('new cards handle terminal states and validation', () => {
-  const cancel = readSource('../components/booking/CancellationRequestCard.tsx')
+  // The booking card answers through the dashboard's shared refund actions.
+  const cancel = readSource('../components/booking/RefundRequestActions.tsx')
   assert.match(cancel, /cancellation\/respond/)
   assert.match(cancel, /approve.*reject|decision.*approve/s)
 
@@ -315,21 +337,20 @@ test('RFQ wording and milestone/price keys exist with placeholders intact', () =
 })
 
 test('item 13: approving a cancellation on the booking page asks for confirmation first', () => {
-  const source = readSource('../components/booking/CancellationRequestCard.tsx')
-  // The first click only opens the confirmation; only its confirm button calls the API.
-  assert.match(source, /onClick=\{\(\) => setConfirmingApprove\(true\)\}/)
-  assert.doesNotMatch(source, /onClick=\{\(\) => void respond\('approve'\)\}/)
-  assert.match(source, /void respond\('approve'\)\.finally\(\(\) => setConfirmingApprove\(false\)\)/)
+  // FT3 #3A: the booking card uses the dashboard's actions, which confirm a
+  // full refund (and a rejection) before calling the API.
+  const source = readSource('../components/booking/RefundRequestActions.tsx')
+  const confirmAt = source.indexOf("decision === 'approve' && !window.confirm(t('refundRequests.confirmApprove'))")
+  assert.ok(confirmAt > 0)
+  assert.ok(confirmAt < source.indexOf('authFetch('))
   for (const locale of ['en', 'nl', 'fr']) {
-    const messages = JSON.parse(readFileSync(new URL(`../messages/${locale}/bookings.json`, import.meta.url), 'utf8'))
-    for (const key of ['confirmApproveTitle', 'confirmApproveFull', 'confirmApproveAmount', 'confirmApprovePartialHint', 'confirmApproveButton', 'confirmApproveCancel']) {
-      assert.ok(messages.cancellationRequest[key], `${locale}: cancellationRequest.${key}`)
+    const messages = JSON.parse(readFileSync(new URL(`../messages/${locale}/dashboardWidgets.json`, import.meta.url), 'utf8'))
+    for (const key of ['confirmApprove', 'confirmReject', 'approveFull', 'negotiate', 'reject']) {
+      assert.ok(messages.refundRequests[key], `${locale}: refundRequests.${key}`)
     }
   }
-  // The initial render still shows Approve/Reject but no confirmation yet.
   const html = renderCard(React.createElement(CancellationRequestCard, {
     bookingId: 'b1', request: { id: 'c1', status: 'pending', requestedRole: 'customer' }, viewerRole: 'professional', currency: 'EUR',
   }))
-  assert.match(html, /Approve cancellation/)
-  assert.doesNotMatch(html, /Yes, approve and refund/)
+  assert.match(html, /Approve full refund/)
 })

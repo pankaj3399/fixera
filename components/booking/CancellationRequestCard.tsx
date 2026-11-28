@@ -1,23 +1,21 @@
 'use client'
 
-import { useState } from "react"
 import { useTranslations } from "next-intl"
-import { AlertTriangle, CheckCircle, Loader2, XCircle } from "lucide-react"
+import { AlertTriangle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useCurrency } from "@/contexts/CurrencyContext"
 import { useFormatLocale } from "@/lib/i18n/useFormatLocale"
-import { useErrorMessage } from "@/lib/i18n/useErrorMessage"
-import { authFetch } from "@/lib/utils"
 import type { CancellationRequestDto } from "@/types/bookingDetails"
-import { toast } from "sonner"
+import RefundRequestActions from "@/components/booking/RefundRequestActions"
 
 interface CancellationRequestCardProps {
   bookingId: string
   request: CancellationRequestDto
   viewerRole: 'customer' | 'professional' | 'admin' | null
   currency?: string | null
+  /** Booking price: the highest counter-offer the professional may send. */
+  maxCounterAmount?: number | null
   onResolved?: () => void
 }
 
@@ -34,17 +32,14 @@ export default function CancellationRequestCard({
   request,
   viewerRole,
   currency,
+  maxCounterAmount,
   onResolved,
 }: CancellationRequestCardProps) {
   const t = useTranslations("bookings")
   const tx = t as unknown as (key: string, params?: Record<string, string | number>) => string
   const hasTx = t.has as unknown as (key: string) => boolean
-  const getErrorText = useErrorMessage()
   const { formatMoney } = useCurrency()
   const { intl } = useFormatLocale()
-  const [busy, setBusy] = useState<'approve' | 'reject' | null>(null)
-  // Approving refunds the customer and cancels the booking: never in one click.
-  const [confirmingApprove, setConfirmingApprove] = useState(false)
 
   const requesterName =
     request.requestedBy?.name ||
@@ -55,41 +50,11 @@ export default function CancellationRequestCard({
   const isPending = status === 'pending' || status === 'negotiating'
   // Review item 7: verified against the backend — professionalRespondToCancellation
   // rejects anything but status 'pending' (400), so the buttons correctly stay
-  // hidden during 'negotiating'/'escalated' (those continue in the dashboard).
+  // hidden during 'negotiating'/'escalated'. The actions are the dashboard's
+  // own (RefundRequestActions): approve full refund, negotiate, reject (FT3 #3A).
   const canAct =
     viewerRole === 'professional' && (request.status === 'pending') && !TERMINAL_STATUSES.has(status)
   const displayCurrency = request.currency || currency || 'EUR'
-
-  const respond = async (decision: 'approve' | 'reject') => {
-    if (busy) return
-    setBusy(decision)
-    try {
-      // Review item 8: authFetch injects the token + credentials:include.
-      const res = await authFetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/bookings/${bookingId}/cancellation/respond`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ decision }),
-        }
-      )
-      const json = await res.json().catch(() => null)
-      if (!res.ok || !json?.success) {
-        toast.error(getErrorText(json, t("cancellationRequest.toasts.respondFailed")))
-        return
-      }
-      toast.success(
-        decision === 'approve'
-          ? t("cancellationRequest.toasts.approved")
-          : t("cancellationRequest.toasts.rejected")
-      )
-      onResolved?.()
-    } catch (err) {
-      toast.error(getErrorText(err, t("cancellationRequest.toasts.respondFailed")))
-    } finally {
-      setBusy(null)
-    }
-  }
 
   const formatDateTime = (value?: string | null) => {
     if (!value) return null
@@ -172,60 +137,12 @@ export default function CancellationRequestCard({
           </p>
         ) : null}
         {canAct ? (
-          <div className="flex flex-wrap gap-2 pt-1">
-            <Button
-              size="sm"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
-              disabled={busy !== null || confirmingApprove}
-              onClick={() => setConfirmingApprove(true)}
-            >
-              {busy === 'approve' ? (
-                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-              ) : (
-                <CheckCircle className="h-3.5 w-3.5 mr-1" />
-              )}
-              {t("cancellationRequest.approve")}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-rose-300 text-rose-700 hover:bg-rose-50"
-              disabled={busy !== null}
-              onClick={() => void respond('reject')}
-            >
-              {busy === 'reject' ? (
-                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-              ) : (
-                <XCircle className="h-3.5 w-3.5 mr-1" />
-              )}
-              {t("cancellationRequest.reject")}
-            </Button>
-          </div>
-        ) : null}
-        {canAct && confirmingApprove ? (
-          <div role="alertdialog" aria-live="assertive" className="mt-2 space-y-2 rounded-md border border-rose-200 bg-white p-3">
-            <p className="font-medium text-rose-800">{t("cancellationRequest.confirmApproveTitle")}</p>
-            <p className="text-xs text-gray-700">
-              {request.refundAmount != null
-                ? t("cancellationRequest.confirmApproveAmount", { amount: formatMoney(request.refundAmount, displayCurrency) })
-                : t("cancellationRequest.confirmApproveFull")}
-            </p>
-            <p className="text-xs text-gray-500">{t("cancellationRequest.confirmApprovePartialHint")}</p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                size="sm"
-                className="bg-rose-600 hover:bg-rose-700 text-white"
-                disabled={busy !== null}
-                onClick={() => void respond('approve').finally(() => setConfirmingApprove(false))}
-              >
-                {busy === 'approve' ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5 mr-1" />}
-                {t("cancellationRequest.confirmApproveButton")}
-              </Button>
-              <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => setConfirmingApprove(false)}>
-                {t("cancellationRequest.confirmApproveCancel")}
-              </Button>
-            </div>
-          </div>
+          <RefundRequestActions
+            bookingId={bookingId}
+            maxAmount={maxCounterAmount ?? 0}
+            currency={displayCurrency}
+            onResolved={() => onResolved?.()}
+          />
         ) : null}
       </CardContent>
     </Card>

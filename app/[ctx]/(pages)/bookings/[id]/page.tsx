@@ -2806,6 +2806,7 @@ function BookingDetailContent() {
               (user?.role === 'customer' || user?.role === 'professional' || user?.role === 'admin' ? user.role : null)
             }
             currency={booking.payment?.currency || booking.quote?.currency || 'EUR'}
+            maxCounterAmount={booking.payment?.amount ?? booking.quote?.amount}
             onResolved={refreshBooking}
           />
         )}

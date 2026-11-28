@@ -1384,8 +1384,6 @@
     "responseDeadline": "Please respond before {date}",
     "refundAmount": "Refund amount",
     "denyReason": "Denial reason",
-    "approve": "Approve cancellation",
-    "reject": "Reject request",
     "status": {
       "pending": "Pending",
       "processing": "Processing",
@@ -1394,18 +1392,7 @@
       "approved": "Approved",
       "denied": "Denied"
     },
-    "toasts": {
-      "respondFailed": "Failed to respond to the cancellation request.",
-      "approved": "Cancellation approved and refund issued.",
-      "rejected": "Cancellation request rejected."
-    },
-    "adminNote": "Admin note: {note}",
-    "confirmApproveTitle": "Approve this cancellation?",
-    "confirmApproveFull": "The customer is refunded in full and the booking is cancelled. This cannot be undone.",
-    "confirmApproveAmount": "The customer is refunded {amount} and the booking is cancelled. This cannot be undone.",
-    "confirmApprovePartialHint": "To offer a partial refund instead, use Negotiate under Dashboard → Refund requests.",
-    "confirmApproveButton": "Yes, approve and refund",
-    "confirmApproveCancel": "Go back"
+    "adminNote": "Admin note: {note}"
   },
   "rescheduleRequest": {
     "title": "Reschedule request",
